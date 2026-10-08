@@ -160,7 +160,11 @@ main{flex:1; padding:18px 18px 40px;}
 .status-badge.skip{border-color:var(--paper-line); color:#9a8f74;}
 
 video{width:100%; border-radius:6px; border:2px solid var(--ink); display:block; background:#000;}
-.scan-wrap{position:relative;}
+.scan-wrap{position:relative; overflow:hidden; border-radius:6px;}
+.confirm-msg{margin-top:10px; padding:10px 12px; border-radius:5px; font-size:13.5px; font-weight:700; background:rgba(75,122,82,0.14); color:var(--green); border:1.5px solid var(--green);}
+.confirm-msg.err{background:rgba(178,58,46,0.1); color:var(--red); border-color:var(--red);}
+.lock-hint{font-size:12px; color:var(--gold); margin-top:8px; font-weight:700;}
+.scan-hint{font-size:12.5px; color:var(--ink-soft); margin-top:8px;}
 .scan-frame{position:absolute; inset:14%; border:2px solid var(--orange); border-radius:8px; pointer-events:none; box-shadow:0 0 0 999px rgba(0,0,0,0.25);}
 
 .opt-btn{
@@ -219,7 +223,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
     <div class="topbar-row">
       <div class="brand">
         <svg viewBox="0 0 40 40"><g fill="none" stroke="#F2EBDA" stroke-width="2"><circle cx="20" cy="20" r="17"/><path d="M20 5 L20 12 M20 28 L20 35 M5 20 L12 20 M28 20 L35 20"/><path d="M20 12 L24 20 L20 28 L16 20 Z" fill="#D9612B" stroke="none"/></g></svg>
-        <div class="brand-text">北郷 防災デジタル<br>オリエンテーリング<small id="participantTag">-</small></div>
+        <div class="brand-text"><span id="brandName">北郷 防災デジタル<br>オリエンテーリング</span><small id="participantTag">-</small></div>
       </div>
       <div style="text-align:right;">
         <div class="timer" id="timerDisplay">90:00</div>
@@ -242,8 +246,8 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
           <circle cx="50" cy="50" r="4" fill="#1C2B3A"/>
         </svg>
         <div class="eyebrow">Fukui / Katsuyama · Bousai Orienteering</div>
-        <h1>北郷 防災デジタル<br>オリエンテーリング</h1>
-        <p class="lead">現地を歩き、GPSとQRコードで地点を確認しながら、防災クイズに答えて学ぶオリエンテーリングです。制限時間は<b>90分</b>、全6地点・最高得点<b>100点</b>。</p>
+        <h1 id="heroTitle">北郷 防災デジタル<br>オリエンテーリング</h1>
+        <p class="lead" id="heroLead">現地を歩き、GPSとQRコードで地点を確認しながら、防災クイズに答えて学ぶオリエンテーリングです。制限時間は<b>90分</b>、全6地点・最高得点<b>100点</b>。</p>
       </div>
 
       <div class="card">
@@ -264,7 +268,8 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
         <input id="inputTeam" placeholder="例: 1班">
       </div>
       <div id="startError" style="color:var(--red); font-size:12.5px; display:none; margin-bottom:6px;"></div>
-      <button class="btn primary" onclick="startEvent()">スタート(制限時間90分)</button>
+      <div id="cfgNote" style="font-size:12px; color:var(--ink-soft); margin-bottom:4px;"></div>
+      <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
         <a onclick="showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
@@ -286,6 +291,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
           <span class="status-badge wait" id="gpsBadge">未確認</span>
           <span id="gpsDetail" style="font-size:12px; color:var(--ink-soft);"></span>
         </div>
+        <div class="confirm-msg" id="gpsConfirm" style="display:none;"></div>
         <button class="btn ghost" id="gpsBtn" onclick="checkGPS()">現在地を確認</button>
         <a class="btn linklike" id="gpsSkipBtn" style="display:none;" onclick="skipGPS()">GPSが使えない場合:QR確認のみで進む</a>
       </div>
@@ -296,17 +302,20 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
         <div class="status-row">
           <span class="status-badge wait" id="qrBadge">未確認</span>
         </div>
+        <div class="lock-hint" id="qrLockHint" style="display:none;">🔒 先に①の現在地確認を完了すると、QRコードの読み取りができます。</div>
         <button class="btn ghost" id="qrScanBtn" onclick="startScan()">QRコードをスキャン</button>
         <div class="scan-wrap" id="scanWrap" style="display:none; margin-top:10px;">
           <video id="scanVideo" playsinline muted></video>
           <div class="scan-frame"></div>
-          <button class="btn small ghost" style="margin-top:8px;" onclick="stopScan()">スキャンを中止</button>
         </div>
-        <a class="btn linklike" onclick="toggleManualQR()">コードを直接入力する</a>
+        <div class="scan-hint" id="scanHint" style="display:none;"></div>
+        <button class="btn small ghost" id="scanStopBtn" style="display:none; margin-top:8px;" onclick="stopScan()">スキャンを中止</button>
+        <button class="btn linklike" id="manualToggleBtn" onclick="toggleManualQR()">コードを直接入力する</button>
         <div id="manualQRWrap" style="display:none;">
           <div class="field"><input id="manualQRInput" placeholder="コードを入力 (例: P01)"></div>
           <button class="btn ghost small" onclick="submitManualQR()">確認する</button>
         </div>
+        <div class="confirm-msg" id="qrMsg" style="display:none;"></div>
       </div>
 
       <button class="btn primary" id="toQuizBtn" disabled onclick="goToQuiz()">クイズに進む</button>
@@ -374,11 +383,11 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
 </div>
 
 <script>
-/* ============ DATA (北郷_防災デジタルオリエンテーリング_管理台帳.xlsx より) ============ */
-const CONFIG = { eventName:"北郷 防災デジタルオリエンテーリング", gpsRadius:50, qrRequired:true, timeLimitMin:90, maxScore:100 };
+/* ============ DATA: 既定値(スプレッドシートを読み込めない場合の予備) ============ */
+let CONFIG = { eventName:"北郷 防災デジタルオリエンテーリング", gpsRadius:50, qrRequired:true, timeLimitMin:90, maxScore:100 };
 
-const POINTS = [
-  {id:"P01", name:"北郷小学校", lat:36.0808130001082, lng:136.442589681383, radius:50, qr:"P01", points:10, next:"P02", desc:"避難場所と災害種別を確認"},
+let POINTS = [
+  {id:"P01", name:"北郷小学校", lat:36.086277, lng:136.428774, radius:50, qr:"P01", points:10, next:"P02", desc:"避難場所と災害種別を確認"},
   {id:"P02", name:"河川観察ポイント", lat:null, lng:null, radius:50, qr:"P02", points:10, next:"P03", desc:"河川には近づかず安全な場所から観察"},
   {id:"P03", name:"敷見川周辺・安全観察地点", lat:null, lng:null, radius:50, qr:"P03", points:10, next:"P04", desc:"大雨時の水害リスクを考える"},
   {id:"P04", name:"避難判断ポイント", lat:null, lng:null, radius:50, qr:"P04", points:10, next:"P05", desc:"警戒レベルと避難行動を考える"},
@@ -386,7 +395,7 @@ const POINTS = [
   {id:"GOAL", name:"北郷まちづくり会館", lat:36.085433, lng:136.434528, radius:50, qr:"GOAL", points:20, next:null, desc:"総合問題"}
 ];
 
-const QUIZ = {
+let QUIZ = {
   P01: {q:"災害時の避難先を考えるとき、最も重要なのは？", opts:{A:"ハザードマップ等で災害種別と避難先を確認する", B:"近い施設なら必ず避難する", C:"普段使う施設を優先する", D:"川に近い施設を選ぶ"}, correct:"A", points:10, exp:"避難先は災害種別や施設の利用条件を確認して選ぶ"},
   P02: {q:"大雨で川が増水しているときの行動として適切なのは？", opts:{A:"川の様子を見に行く", B:"川に近づかず安全な場所で情報を確認する", C:"橋の上から撮影する", D:"水位が低ければ川岸へ行く"}, correct:"B", points:10, exp:"増水した河川には近づかず、安全を確保して情報を確認する"},
   P03: {q:"大雨の際に避難経路を考えるとき、避けるべき場所は？", opts:{A:"安全な高い場所", B:"指定された安全な経路", C:"増水のおそれがある河川沿い", D:"周囲を確認できる場所"}, correct:"C", points:10, exp:"河川沿いなど浸水・増水の危険がある場所は避ける"},
@@ -448,7 +457,7 @@ function startEvent(){
   document.getElementById('participantTag').textContent=name+(team?' / '+team:'')+' (No.'+id+')';
   buildRail();
   startTimer();
-  saveParticipantRecord(false);
+  postJSON({type:'start', id:id, name:name, team:team, startedAt:state.startedAt});
   enterPoint();
 }
 
@@ -500,34 +509,58 @@ function buildRail(){
 /* ============ CHECK-IN SCREEN ============ */
 function enterPoint(){
   const p=currentPoint();
-  state.gpsOk = (p.lat===null || p.lng===null); // GPS座標が無い地点はQRのみで判定
-  state.qrOk=false;
-  state.gpsDist=null;
+  state.hasGps = !(p.lat===null || p.lng===null);   // 緯度経度が設定されている地点はGPS判定あり
+  state.gpsOk = !state.hasGps;
+  state.qrOk = !CONFIG.qrRequired;
+  state.gpsDist=null; state.gpsLat=null; state.gpsLng=null; state.checkinPosted=false;
+  stopScan();
   buildRail();
 
   document.getElementById('ptName').textContent=p.name;
   document.getElementById('ptDesc').textContent=p.desc;
 
-  const gpsCard=document.getElementById('gpsCard');
   const gpsBadge=document.getElementById('gpsBadge');
-  const gpsDetail=document.getElementById('gpsDetail');
-  document.getElementById('gpsHelp').textContent = state.gpsOk
-    ? 'この地点はGPS座標が未設定のため、QRコード確認のみで到着を判定します。'
-    : 'この地点への到着をGPSで確認します。「現在地を確認」を押してください。(半径'+p.radius+'m以内)';
-  document.getElementById('gpsBtn').style.display = state.gpsOk ? 'none' : 'block';
+  document.getElementById('gpsHelp').textContent = state.hasGps
+    ? 'この地点への到着をGPSで確認します。「現在地を確認」を押してください。(半径'+CONFIG.gpsRadius+'m以内)'
+    : 'この地点はGPS座標が未設定のため、QRコード確認のみで到着を判定します。';
+  const gpsBtn=document.getElementById('gpsBtn');
+  gpsBtn.style.display = state.hasGps ? 'block' : 'none';
+  gpsBtn.disabled=false; gpsBtn.textContent='現在地を確認';
   document.getElementById('gpsSkipBtn').style.display='none';
-  gpsDetail.textContent='';
-  gpsBadge.textContent = state.gpsOk ? '判定なし' : '未確認';
-  gpsBadge.className='status-badge '+(state.gpsOk?'skip':'wait');
+  document.getElementById('gpsDetail').textContent='';
+  document.getElementById('gpsConfirm').style.display='none';
+  gpsBadge.textContent = state.hasGps ? '未確認' : '判定なし';
+  gpsBadge.className='status-badge '+(state.hasGps?'wait':'skip');
 
-  document.getElementById('qrBadge').textContent='未確認';
-  document.getElementById('qrBadge').className='status-badge wait';
-  document.getElementById('scanWrap').style.display='none';
+  document.getElementById('qrBadge').textContent = CONFIG.qrRequired ? '未確認' : '判定なし';
+  document.getElementById('qrBadge').className = 'status-badge ' + (CONFIG.qrRequired ? 'wait' : 'skip');
+  document.getElementById('qrMsg').style.display='none';
   document.getElementById('manualQRWrap').style.display='none';
   document.getElementById('manualQRInput').value='';
 
+  setLocks();
   refreshQuizButton();
   showScreen('screen-point');
+}
+
+/* GPSが使える地点は、現在地確認が済むまでQR/コード入力を使えない */
+function setLocks(){
+  const locked = !state.gpsOk;
+  const done = state.qrOk && CONFIG.qrRequired;
+  document.getElementById('qrScanBtn').disabled = locked || done;
+  document.getElementById('manualToggleBtn').disabled = locked || done;
+  document.getElementById('qrLockHint').style.display = (locked && CONFIG.qrRequired) ? 'block' : 'none';
+  if(locked || done){
+    stopScan();
+    document.getElementById('manualQRWrap').style.display='none';
+  }
+}
+
+function showConfirm(id, text, isErr){
+  const el=document.getElementById(id);
+  el.textContent=text;
+  el.className='confirm-msg'+(isErr?' err':'');
+  el.style.display='block';
 }
 
 function checkGPS(){
@@ -544,18 +577,24 @@ function checkGPS(){
   navigator.geolocation.getCurrentPosition(pos=>{
     btn.disabled=false; btn.textContent='現在地を再確認';
     const dist=haversine(pos.coords.latitude,pos.coords.longitude,p.lat,p.lng);
-    state.gpsDist=dist;
-    if(dist<=p.radius){
+    state.gpsDist=dist; state.gpsLat=pos.coords.latitude; state.gpsLng=pos.coords.longitude;
+    if(dist<=CONFIG.gpsRadius){
       state.gpsOk=true;
-      badge.textContent='確認OK';
+      badge.textContent='確認済み';
       badge.className='status-badge ok';
-      detail.textContent='距離 約'+Math.round(dist)+'m';
+      detail.textContent='';
+      showConfirm('gpsConfirm','✅ 確認済み(現在地を確認しました・距離 約'+Math.round(dist)+'m)');
+      btn.style.display='none';
+      document.getElementById('gpsSkipBtn').style.display='none';
+      postCheckin('到着確認(GPS)', state.gpsLat, state.gpsLng, Math.round(dist));
     }else{
       state.gpsOk=false;
       badge.textContent='範囲外';
       badge.className='status-badge wait';
-      detail.textContent='現在地点まで約'+Math.round(dist)+'m。地点に近づいてから再確認してください。';
+      detail.textContent='';
+      showConfirm('gpsConfirm','地点まで約'+Math.round(dist)+'m。半径'+CONFIG.gpsRadius+'m以内に近づいてから再確認してください。', true);
     }
+    setLocks();
     refreshQuizButton();
   }, e=>{
     btn.disabled=false; btn.textContent='現在地を再確認';
@@ -569,80 +608,133 @@ function skipGPS(){
   const b=document.getElementById('gpsBadge');
   b.textContent='判定スキップ'; b.className='status-badge skip';
   document.getElementById('gpsSkipBtn').style.display='none';
+  document.getElementById('gpsBtn').style.display='none';
+  showConfirm('gpsConfirm','⚠ GPS判定をスキップしました(QR確認のみで進みます)', true);
+  setLocks();
   refreshQuizButton();
 }
 function refreshQuizButton(){
   document.getElementById('toQuizBtn').disabled = !(state.gpsOk && state.qrOk);
 }
 
+/* ---- 到着記録(回答ログに現在地を書き込む) ---- */
+function postCheckin(method, lat, lng, dist){
+  if(state.checkinPosted || !state.participant) return;
+  state.checkinPosted=true;
+  postJSON({type:'checkin', id:state.participant.id, pointId:currentPoint().id, method:method,
+    lat: lat==null?'':lat, lng: lng==null?'':lng, gpsDist: dist==null?'':dist});
+}
+/* GPS座標が無い地点でも、位置が取れれば記録する */
+function recordArrival(method){
+  if(state.checkinPosted) return;
+  state.checkinPosted=true;
+  const send=(lat,lng)=>{ postJSON({type:'checkin', id:state.participant.id, pointId:currentPoint().id, method:method, lat:lat, lng:lng, gpsDist:''}); if(lat!=='') { state.gpsLat=lat; state.gpsLng=lng; } };
+  if(!navigator.geolocation){ send('',''); return; }
+  navigator.geolocation.getCurrentPosition(pos=>send(pos.coords.latitude,pos.coords.longitude), ()=>send('',''), {enableHighAccuracy:true, timeout:8000, maximumAge:30000});
+}
+
 /* ---- QR scan ---- */
-function startScan(){
+function setScanHint(t){
+  const h=document.getElementById('scanHint');
+  h.textContent=t; h.style.display = t ? 'block' : 'none';
+}
+async function startScan(){
+  if(state.scanStream || !state.gpsOk) return;
   const wrap=document.getElementById('scanWrap');
   const video=document.getElementById('scanVideo');
-  wrap.style.display='block';
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(stream=>{
-    state.scanStream=stream;
-    video.srcObject=stream;
-    video.setAttribute('playsinline',true);
-    video.play();
-    const canvas=document.createElement('canvas');
-    const ctx=canvas.getContext('2d');
-    function tick(){
-      if(!state.scanStream) return;
-      if(video.readyState===video.HAVE_ENOUGH_DATA){
-        canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-        ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-        const code = window.jsQR ? jsQR(img.data,img.width,img.height) : null;
-        if(code && code.data){
-          handleQRResult(code.data);
-          return;
-        }
-      }
-      state.scanRAF=requestAnimationFrame(tick);
-    }
-    state.scanRAF=requestAnimationFrame(tick);
-  }).catch(err=>{
-    wrap.style.display='none';
+  document.getElementById('qrMsg').style.display='none';
+  let stream;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+  }catch(err){
     document.getElementById('manualQRWrap').style.display='block';
-    alert('カメラを起動できませんでした。コードを直接入力してください。');
-  });
+    showConfirm('qrMsg','カメラを起動できませんでした。コードを直接入力してください。', true);
+    return;
+  }
+  state.scanStream=stream;
+  wrap.style.display='block';
+  document.getElementById('scanStopBtn').style.display='inline-block';
+  setScanHint('読み取り中… QRコードを枠の中に入れてください');
+  video.srcObject=stream;
+  video.setAttribute('playsinline','true');
+  try{ await video.play(); }catch(e){}
+
+  let detector=null;
+  if('BarcodeDetector' in window){ try{ detector=new BarcodeDetector({formats:['qr_code']}); }catch(e){ detector=null; } }
+  const canvas=document.createElement('canvas');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  let busy=false; const started=Date.now(); let lastMismatch='';
+  state.scanTimer=setInterval(async ()=>{
+    if(busy || !state.scanStream) return;
+    if(video.readyState<2 || !video.videoWidth) return;
+    busy=true;
+    try{
+      let text=null;
+      if(detector){
+        const r=await detector.detect(video);
+        if(r && r.length) text=r[0].rawValue;
+      }
+      if(!text && window.jsQR){
+        const scale=Math.min(1, 640/Math.max(video.videoWidth, video.videoHeight));
+        const w=Math.round(video.videoWidth*scale), h=Math.round(video.videoHeight*scale);
+        canvas.width=w; canvas.height=h;
+        ctx.drawImage(video,0,0,w,h);
+        const img=ctx.getImageData(0,0,w,h);
+        const c=jsQR(img.data,w,h,{inversionAttempts:'attemptBoth'});
+        if(c && c.data) text=c.data;
+      }
+      if(text){
+        if(matchesPoint(text)){ acceptQR(); }
+        else if(text!==lastMismatch){ lastMismatch=text; setScanHint('この地点のコードではありません(読み取り: '+text+')。この地点のQRコードを読み取ってください。'); }
+      }else if(Date.now()-started>15000){
+        setScanHint('読み取れない場合は、QRコードに近づく・明るい場所で・画面の反射を避けてください。「コードを直接入力する」も使えます。');
+      }
+    }catch(e){}
+    busy=false;
+  }, 200);
 }
 function stopScan(){
-  if(state.scanRAF) cancelAnimationFrame(state.scanRAF);
-  state.scanRAF=null;
+  if(state.scanTimer){ clearInterval(state.scanTimer); state.scanTimer=null; }
   if(state.scanStream){
     state.scanStream.getTracks().forEach(t=>t.stop());
     state.scanStream=null;
   }
-  document.getElementById('scanWrap').style.display='none';
+  const v=document.getElementById('scanVideo'); if(v) v.srcObject=null;
+  const w=document.getElementById('scanWrap'); if(w) w.style.display='none';
+  const b=document.getElementById('scanStopBtn'); if(b) b.style.display='none';
+  setScanHint('');
 }
-function handleQRResult(text){
+function matchesPoint(text){
+  return text.trim().toUpperCase()===currentPoint().qr.toUpperCase();
+}
+function acceptQR(){
   stopScan();
-  const p=currentPoint();
+  state.qrOk=true;
   const badge=document.getElementById('qrBadge');
-  if(text.trim().toUpperCase()===p.qr.toUpperCase()){
-    state.qrOk=true;
-    badge.textContent='確認OK';
-    badge.className='status-badge ok';
-  }else{
-    badge.textContent='コード不一致';
-    badge.className='status-badge wait';
-    alert('この地点のコードと一致しませんでした。もう一度お試しください。');
-  }
+  badge.textContent='確認済み';
+  badge.className='status-badge ok';
+  showConfirm('qrMsg','✅ 確認済み(QRコードを確認しました)');
+  document.getElementById('manualQRWrap').style.display='none';
+  setLocks();
+  recordArrival('到着確認(QR)');
   refreshQuizButton();
 }
 function toggleManualQR(){
+  if(!state.gpsOk) return;
   const w=document.getElementById('manualQRWrap');
   w.style.display = (w.style.display==='none'||!w.style.display) ? 'block' : 'none';
 }
 function submitManualQR(){
+  if(!state.gpsOk) return;
   const val=document.getElementById('manualQRInput').value;
-  if(val) handleQRResult(val);
+  if(!val) return;
+  if(matchesPoint(val)) acceptQR();
+  else showConfirm('qrMsg','コードが一致しません。もう一度確認してください。', true);
 }
 
 /* ============ QUIZ ============ */
 function goToQuiz(){
+  recordArrival('到着確認');
   const p=currentPoint();
   const q=QUIZ[p.id];
   state.answered=false;
@@ -734,12 +826,12 @@ async function postJSON(obj){
 async function saveParticipantRecord(isFinal, completed, elapsedSec){
   if(!state.participant || !isFinal) return false;
   return postJSON({type:'result', id:state.participant.id, name:state.participant.name, team:state.participant.team||'',
-    score:state.score, elapsedSec:elapsedSec, completed:!!completed, lastPoint:currentPoint().id});
+    score:state.score, elapsedSec:elapsedSec, completed:!!completed, lastPoint:currentPoint().id, startedAt:state.startedAt, endedAt:Date.now()});
 }
 async function logAnswer(pointId, choice, correct, earned){
   if(!state.participant) return;
   postJSON({type:'log', id:state.participant.id, name:state.participant.name, pointId:pointId, choice:choice, correct:correct, earned:earned,
-    gpsDist: state.gpsDist==null ? '' : Math.round(state.gpsDist)});
+    gpsDist: state.gpsDist==null ? '' : Math.round(state.gpsDist), lat: state.gpsLat==null ? '' : state.gpsLat, lng: state.gpsLng==null ? '' : state.gpsLng});
 }
 async function loadRanking(){
   const body=document.getElementById('rankingBody');
@@ -806,7 +898,36 @@ function buildStaffSheet(){
     }
   });
 }
-document.getElementById('screen-staff') && buildStaffSheet();
+
+function applyConfig(){
+  document.title = CONFIG.eventName;
+  document.getElementById('brandName').textContent = CONFIG.eventName;
+  document.getElementById('heroTitle').textContent = CONFIG.eventName;
+  document.getElementById('heroLead').innerHTML = '現地を歩き、GPSとQRコードで地点を確認しながら、防災クイズに答えて学ぶオリエンテーリングです。制限時間は<b>'+CONFIG.timeLimitMin+'分</b>、全'+POINTS.length+'地点・最高得点<b>'+CONFIG.maxScore+'点</b>。';
+  document.getElementById('startBtn').textContent = 'スタート(制限時間'+CONFIG.timeLimitMin+'分)';
+  document.getElementById('timerDisplay').textContent = fmtTime(CONFIG.timeLimitMin*60);
+  const sheet=document.getElementById('qrSheet');
+  sheet.innerHTML=''; delete sheet.dataset.built;
+  buildStaffSheet();
+}
+async function loadRemoteConfig(){
+  const btn=document.getElementById('startBtn');
+  const note=document.getElementById('cfgNote');
+  if(!API_URL){ applyConfig(); return; }
+  btn.disabled=true; btn.textContent='設定を読み込み中...';
+  try{
+    const r = await fetch(API_URL+'?action=config');
+    const j = await r.json();
+    if(!j.ok || !j.points || !j.points.length || !j.quiz) throw new Error(j.error||'invalid');
+    CONFIG=j.config; POINTS=j.points; QUIZ=j.quiz;
+  }catch(e){
+    console.error('config load failed',e);
+    note.textContent='※スプレッドシートの設定を読み込めなかったため、内蔵の設定で動作します。';
+  }
+  applyConfig();
+  btn.disabled=false;
+}
+loadRemoteConfig();
 </script>
 </body>
 </html>
