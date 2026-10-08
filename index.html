@@ -191,17 +191,17 @@ table.rank td{padding:9px 6px; border-bottom:1px solid var(--paper-line);}
 table.rank tr.me{background:rgba(217,97,43,0.12);}
 .rankno{font-family:'JetBrains Mono',monospace; font-weight:700;}
 
-.stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;}
-.stat{background:var(--paper-dark); border:1px solid var(--paper-line); border-radius:6px; padding:12px 8px; text-align:center;}
-.stat .lbl{font-size:12px; font-weight:700; color:var(--ink-soft);}
-.stat .num{font-family:'JetBrains Mono',monospace; font-size:30px; font-weight:700; color:var(--ink); margin-top:2px;}
+.stat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0;}
+.stat{background:var(--paper-dark); border:1px solid var(--paper-line); border-radius:6px; padding:10px 4px; text-align:center;}
+.stat .lbl{font-size:11.5px; font-weight:700; color:var(--ink-soft); white-space:nowrap;}
+.stat .num{font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:700; color:var(--ink); margin-top:2px;}
 .stat.wide{grid-column:1 / -1;}
 .gamestate{display:flex; align-items:center; justify-content:center; gap:10px; margin:12px 0 4px; font-weight:700; font-size:15px;}
 .gamestate .badge{font-family:'JetBrains Mono',monospace; font-size:13px; padding:5px 12px; border-radius:20px; border:1.5px solid var(--green); color:var(--green); background:rgba(75,122,82,0.12);}
 .gamestate .badge.off{border-color:var(--red); color:var(--red); background:rgba(178,58,46,0.1);}
 .btn.danger{background:var(--red); color:#fff; box-shadow:0 3px 0 rgba(0,0,0,0.25);}
 .tablewrap{overflow-x:auto; margin:6px 0 4px;}
-table.qs{width:100%; border-collapse:collapse; font-size:12px; min-width:340px;}
+table.qs{width:100%; border-collapse:collapse; font-size:12px; min-width:300px;}
 table.qs th{text-align:center; font-size:10.5px; color:var(--ink-soft); border-bottom:2px solid var(--ink); padding:6px 4px; white-space:nowrap;}
 table.qs td{text-align:center; padding:7px 4px; border-bottom:1px solid var(--paper-line); white-space:nowrap;}
 table.qs td.l, table.qs th.l{text-align:left;}
@@ -282,7 +282,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
-        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-8</div>
+        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-9</div>
         <a onclick="rankingReturn='start'; showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
         &nbsp;|&nbsp;
         <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
@@ -384,12 +384,12 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
     <!-- ADMIN -->
     <section class="screen" id="screen-admin">
       <div class="hero" style="padding-top:6px;">
-        <div class="eyebrow">ADMIN</div>
+        <div class="eyebrow">管理者画面</div>
         <h1 id="adminEvent" style="font-size:20px;">管理者画面</h1>
       </div>
       <div class="gamestate"><span>ゲーム状態:</span><span class="badge" id="adminStatus">-</span></div>
       <div class="stat-grid">
-        <div class="stat wide"><div class="lbl">参加チーム</div><div class="num" id="stTeams">0</div></div>
+        <div class="stat"><div class="lbl">参加チーム</div><div class="num" id="stTeams">0</div></div>
         <div class="stat"><div class="lbl">参加中</div><div class="num" id="stActive">0</div></div>
         <div class="stat"><div class="lbl">完走</div><div class="num" id="stFinished">0</div></div>
         <div class="stat"><div class="lbl">GPSクリア</div><div class="num" id="stGps">0</div></div>
@@ -995,9 +995,9 @@ function fmtNum(v){ return (v===null||v===undefined) ? '−' : String(v); }
 function renderQuestionStats(qs){
   const el=document.getElementById('qStats');
   if(!qs.length){ el.innerHTML='<p class="admin-sub">データがありません。</p>'; return; }
-  let h='<table class="qs"><tr><th class="l">問題(地点)</th><th>配点</th><th>回答者数</th><th>平均点</th><th>最高点</th><th>最低点</th><th>正解数</th></tr>';
+  let h='<table class="qs"><tr><th class="l">問題(地点)</th><th>配点</th><th>回答者数</th><th>平均点</th><th>正解数</th></tr>';
   qs.forEach(q=>{
-    h+='<tr><td class="l">'+escapeHtml(q.id)+' '+escapeHtml(q.name)+'</td><td class="num">'+q.points+'</td><td class="num">'+q.respondents+'</td><td class="num">'+fmtNum(q.avg)+'</td><td class="num">'+fmtNum(q.max)+'</td><td class="num">'+fmtNum(q.min)+'</td><td class="num">'+q.correct+'</td></tr>';
+    h+='<tr><td class="l">'+escapeHtml(q.id)+' '+escapeHtml(q.name)+'</td><td class="num">'+q.points+'</td><td class="num">'+q.respondents+'</td><td class="num">'+fmtNum(q.avg)+'</td><td class="num">'+q.correct+'</td></tr>';
   });
   el.innerHTML=h+'</table>';
 }
