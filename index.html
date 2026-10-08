@@ -105,7 +105,7 @@ main{flex:1; padding:18px 18px 40px;}
 .screen.active{display:block;}
 @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
 
-.hero{ text-align:center; padding:26px 10px 10px; position:relative;}
+.hero{ text-align:center; padding:14px 10px 6px; position:relative;}
 .hero h1{
   font-family:'Zen Kaku Gothic New',sans-serif; font-weight:900; font-size:26px; line-height:1.35;
   margin:10px 0 6px; color:var(--ink);
@@ -237,14 +237,6 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
     <!-- START -->
     <section class="screen active" id="screen-start">
       <div class="hero">
-        <svg class="compass" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="46" fill="none" stroke="#1C2B3A" stroke-width="1.5" opacity="0.5"/>
-          <circle cx="50" cy="50" r="36" fill="none" stroke="#1C2B3A" stroke-width="1" opacity="0.3" stroke-dasharray="2 3"/>
-          <g stroke="#1C2B3A" stroke-width="1" opacity="0.6"><line x1="50" y1="4" x2="50" y2="14"/><line x1="50" y1="86" x2="50" y2="96"/><line x1="4" y1="50" x2="14" y2="50"/><line x1="86" y1="50" x2="96" y2="50"/></g>
-          <path d="M50 18 L60 50 L50 82 L40 50 Z" fill="#D9612B"/>
-          <path d="M50 18 L60 50 L50 50 Z" fill="#B84D1E"/>
-          <circle cx="50" cy="50" r="4" fill="#1C2B3A"/>
-        </svg>
         <div class="eyebrow">Fukui / Katsuyama · Bousai Orienteering</div>
         <h1 id="heroTitle">北郷 防災デジタル<br>オリエンテーリング</h1>
         <p class="lead" id="heroLead">現地を歩き、GPSとQRコードで地点を確認しながら、防災クイズに答えて学ぶオリエンテーリングです。制限時間は<b>90分</b>、全6地点・最高得点<b>100点</b>。</p>
@@ -268,10 +260,11 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
         <input id="inputTeam" placeholder="例: 1班">
       </div>
       <div id="startError" style="color:var(--red); font-size:12.5px; display:none; margin-bottom:6px;"></div>
-      <div id="cfgNote" style="font-size:12px; color:var(--ink-soft); margin-bottom:4px;"></div>
+      <div id="cfgNote" style="font-size:12px; color:var(--red); margin-bottom:4px; line-height:1.6;"></div>
       <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
+        <div style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-4</div>
         <a onclick="showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
         &nbsp;|&nbsp;
         <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
@@ -926,7 +919,9 @@ async function loadRemoteConfig(){
     CONFIG=j.config; POINTS=j.points; QUIZ=j.quiz;
   }catch(e){
     console.error('config load failed',e);
-    note.textContent='※スプレッドシートの設定を読み込めなかったため、内蔵の設定で動作します。原因: '+(e.message||e);
+    let why = e.message||String(e);
+    if(/Failed to fetch|NetworkError|Load failed/i.test(why)) why='通信できません。Apps Scriptの「アクセスできるユーザー」が「全員」か、API_URLが「…/exec」で終わるURLかを確認してください。('+why+')';
+    note.textContent='※スプレッドシートの設定を読み込めなかったため、内蔵の設定で動作します。原因: '+why;
   }
   applyConfig();
   btn.disabled=false;
