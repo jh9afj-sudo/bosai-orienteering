@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>北郷 防災デジタルオリエンテーリング</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+:root{
+  --ink:#1C2B3A;
+  --ink-soft:#3A4C5C;
+  --paper:#F2EBDA;
+  --paper-dark:#E5DBC2;
+  --paper-line:#CFC2A2;
+  --orange:#D9612B;
+  --orange-deep:#B84D1E;
+  --river:#356E90;
+  --red:#B23A2E;
+  --green:#4B7A52;
+  --gold:#B98A2E;
+  --surface:#FFFFFF;
+  --bar-bg:#1C2B3A;
+  --bar-fg:#F2EBDA;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#EDE6D4; --ink-soft:#B9C2CC;
+    --paper:#18212B; --paper-dark:#243040; --paper-line:#3B4A5C;
+    --orange:#E8733C; --orange-deep:#F08A55; --river:#6BA6CC; --red:#E0675B; --green:#78AE80; --gold:#D8AC52;
+    --surface:#2C3948;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#EDE6D4; --ink-soft:#B9C2CC;
+  --paper:#18212B; --paper-dark:#243040; --paper-line:#3B4A5C;
+  --orange:#E8733C; --orange-deep:#F08A55; --river:#6BA6CC; --red:#E0675B; --green:#78AE80; --gold:#D8AC52;
+  --surface:#2C3948;
+}
+:root{ box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Noto Sans JP',sans-serif;
+  min-height:100vh;
+  position:relative;
+  overflow-x:hidden;
+}
+/* topographic paper texture */
+body::before{
+  content:"";
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(28,43,58,0.05) 0, rgba(28,43,58,0.05) 1px, transparent 1px),
+    radial-gradient(circle at 65% 70%, rgba(28,43,58,0.04) 0, rgba(28,43,58,0.04) 1px, transparent 1px);
+  background-size: 34px 34px, 46px 46px;
+}
+.contour-bg{
+  position:absolute; top:0; left:0; width:100%; height:220px; z-index:0; pointer-events:none; opacity:0.35;
+}
+#app{ position:relative; z-index:1; max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
+
+/* header */
+.topbar{
+  background:var(--bar-bg); color:var(--bar-fg); padding:14px 18px 12px;
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:10;
+  box-shadow:0 3px 10px rgba(0,0,0,0.18);
+}
+.topbar-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.brand{display:flex; align-items:center; gap:8px;}
+.brand svg{width:26px;height:26px; flex:none;}
+.brand-text{font-family:'Zen Kaku Gothic New',sans-serif; font-weight:900; font-size:14px; letter-spacing:0.02em; line-height:1.2;}
+.brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-weight:600; font-size:9px; letter-spacing:0.18em; color:var(--gold); text-transform:uppercase;}
+.timer{
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:18px;
+  background:rgba(242,235,218,0.08); border:1px solid rgba(242,235,218,0.25);
+  padding:5px 10px; border-radius:4px; min-width:66px; text-align:center;
+}
+.timer.low{color:#F0A15C; border-color:#F0A15C;}
+.timer.critical{color:#EE8177; border-color:#EE8177; animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.55;}}
+.scorepill{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--bar-fg); opacity:0.8; margin-top:6px;}
+
+/* trail rail */
+.rail{ display:flex; align-items:center; gap:0; margin-top:12px; padding:0 2px;}
+.rail-node{display:flex; flex-direction:column; align-items:center; flex:none; width:30px;}
+.rail-dot{
+  width:22px;height:22px;border-radius:50%; display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:10px;
+  border:2px solid rgba(242,235,218,0.35); color:rgba(242,235,218,0.55); background:transparent;
+}
+.rail-dot.done{background:var(--green); border-color:var(--green); color:#fff;}
+.rail-dot.current{background:var(--orange); border-color:var(--orange); color:#fff; box-shadow:0 0 0 4px rgba(217,97,43,0.28);}
+.rail-line{flex:1 1 auto; height:2px; background:rgba(242,235,218,0.25); margin:0 -1px; position:relative; top:-10px;}
+.rail-line.done{background:var(--green);}
+
+/* main */
+main{flex:1; padding:18px 18px 40px;}
+.screen{display:none; animation:fadein .25s ease;}
+.screen.active{display:block;}
+@keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+.hero{ text-align:center; padding:14px 10px 6px; position:relative;}
+.hero h1{
+  font-family:'Zen Kaku Gothic New',sans-serif; font-weight:900; font-size:26px; line-height:1.35;
+  margin:10px 0 6px; color:var(--ink);
+}
+.hero .eyebrow{
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:11px; letter-spacing:0.22em;
+  color:var(--orange-deep); text-transform:uppercase;
+}
+.hero p.lead{color:var(--ink-soft); font-size:14px; line-height:1.7; margin:14px auto 0; max-width:360px;}
+
+.compass{width:88px;height:88px;margin:0 auto;}
+
+.card{
+  background:var(--paper-dark); border:1px solid var(--paper-line); border-left:5px solid var(--orange);
+  border-radius:6px; padding:16px 16px; margin:14px 0;
+}
+.card.river{border-left-color:var(--river);}
+.card.green{border-left-color:var(--green);}
+.card.red{border-left-color:var(--red);}
+.card.gold{border-left-color:var(--gold);}
+.card h3{margin:0 0 6px; font-family:'Zen Kaku Gothic New',sans-serif; font-size:15px; font-weight:700;}
+.card p{margin:0; font-size:13.5px; line-height:1.75; color:var(--ink-soft);}
+
+.field{margin:14px 0;}
+.field label{display:block; font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:6px; letter-spacing:0.03em;}
+.field input{
+  width:100%; padding:12px 12px; border:1.5px solid var(--paper-line); border-radius:5px;
+  background:var(--surface); font-size:15px; font-family:'Noto Sans JP',sans-serif; color:var(--ink);
+}
+.field input:focus{outline:2px solid var(--orange); outline-offset:1px; border-color:var(--orange);}
+
+.btn{
+  display:block; width:100%; text-align:center; padding:14px 16px; font-size:15px; font-weight:700;
+  font-family:'Zen Kaku Gothic New',sans-serif; border-radius:5px; border:none; cursor:pointer;
+  margin-top:10px; letter-spacing:0.02em; transition:transform .08s ease, box-shadow .08s ease;
+}
+.btn:active{transform:scale(0.98);}
+.btn:disabled{opacity:0.4; cursor:not-allowed;}
+.btn.primary{background:var(--orange); color:#fff; box-shadow:0 3px 0 var(--orange-deep);}
+.btn.primary:active:not(:disabled){box-shadow:0 1px 0 var(--orange-deep); transform:translateY(2px);}
+.btn.ghost{background:transparent; color:var(--ink); border:1.5px solid var(--ink); box-shadow:none;}
+.btn.small{padding:9px 12px; font-size:12.5px; width:auto; display:inline-block;}
+.btn.linklike{background:none; box-shadow:none; color:var(--river); text-decoration:underline; font-weight:600; font-size:12.5px; padding:6px; width:auto; margin:6px auto 0; display:block;}
+
+.status-row{display:flex; align-items:center; gap:10px; margin-top:4px;}
+.status-badge{
+  font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; padding:4px 9px; border-radius:20px;
+  border:1.5px solid var(--paper-line); color:var(--ink-soft); background:var(--surface);
+}
+.status-badge.ok{border-color:var(--green); color:var(--green); background:rgba(75,122,82,0.08);}
+.status-badge.wait{border-color:var(--gold); color:var(--gold); background:rgba(185,138,46,0.08);}
+.status-badge.skip{border-color:var(--paper-line); color:#9a8f74;}
+
+video{width:100%; border-radius:6px; border:2px solid var(--ink); display:block; background:#000;}
+.scan-wrap{position:relative; overflow:hidden; border-radius:6px;}
+.confirm-msg{margin-top:10px; padding:10px 12px; border-radius:5px; font-size:13.5px; font-weight:700; background:rgba(75,122,82,0.14); color:var(--green); border:1.5px solid var(--green);}
+.confirm-msg.err{background:rgba(178,58,46,0.1); color:var(--red); border-color:var(--red);}
+.lock-hint{font-size:12px; color:var(--gold); margin-top:8px; font-weight:700;}
+.scan-hint{font-size:12.5px; color:var(--ink-soft); margin-top:8px;}
+.scan-frame{position:absolute; inset:14%; border:2px solid var(--orange); border-radius:8px; pointer-events:none; box-shadow:0 0 0 999px rgba(0,0,0,0.25);}
+
+.opt-btn{
+  display:block; width:100%; text-align:left; padding:13px 14px; margin-top:9px; border-radius:5px;
+  border:1.5px solid var(--paper-line); background:var(--surface); font-size:14px; font-family:'Noto Sans JP',sans-serif;
+  cursor:pointer; color:var(--ink); line-height:1.5;
+}
+.opt-btn .tag{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--orange-deep); margin-right:8px;}
+.opt-btn:disabled{cursor:default;}
+.opt-btn.correct{background:rgba(75,122,82,0.12); border-color:var(--green); color:var(--green);}
+.opt-btn.wrong{background:rgba(178,58,46,0.1); border-color:var(--red); color:var(--red);}
+.opt-btn.dim{opacity:0.5;}
+
+.explain{margin-top:14px;}
+.bigscore{
+  font-family:'JetBrains Mono',monospace; font-size:42px; font-weight:700; text-align:center; color:var(--orange-deep);
+  margin:6px 0 0;
+}
+.bigscore span{font-size:16px; color:var(--ink-soft); font-weight:600;}
+
+table.rank{width:100%; border-collapse:collapse; margin-top:10px; font-size:13px;}
+table.rank th{text-align:left; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; color:var(--ink-soft); border-bottom:2px solid var(--ink); padding:6px 6px;}
+table.rank td{padding:9px 6px; border-bottom:1px solid var(--paper-line);}
+table.rank tr.me{background:rgba(217,97,43,0.12);}
+.rankno{font-family:'JetBrains Mono',monospace; font-weight:700;}
+
+footer.stafflink{ text-align:center; padding:6px 0 26px;}
+footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underline; cursor:pointer;}
+
+.qr-sheet{background:#fff; color:#1C2B3A;}
+.qr-sheet .note{color:#3A4C5C;}
+.qr-page{page-break-after:always; padding:30px 14px; text-align:center; border-bottom:1px dashed var(--paper-line);}
+.qr-page h4{font-family:'Zen Kaku Gothic New',sans-serif; font-size:20px; margin:0 0 4px;}
+.qr-page .pid{font-family:'JetBrains Mono',monospace; color:var(--orange-deep); font-weight:700; font-size:13px; margin-bottom:14px;}
+.qr-page .qrbox{display:flex; justify-content:center; margin:10px 0;}
+.qr-page .note{font-size:12px; color:var(--ink-soft); margin-top:10px;}
+@media print{
+  .topbar,.no-print{display:none !important;}
+  body{background:#fff;}
+  #app{max-width:100%;}
+}
+</style>
+</head>
+<body>
+<svg class="contour-bg" viewBox="0 0 480 220" preserveAspectRatio="none">
+  <g fill="none" stroke="#1C2B3A" stroke-width="1">
+    <path d="M-20,170 C60,140 120,190 200,150 C280,110 340,160 500,120" opacity="0.5"/>
+    <path d="M-20,190 C60,165 130,205 210,175 C290,140 350,180 500,145" opacity="0.4"/>
+    <path d="M-20,205 C70,185 140,215 220,195 C300,165 360,200 500,170" opacity="0.3"/>
+    <path d="M-20,60 C70,90 130,40 220,70 C300,95 360,55 500,80" opacity="0.25"/>
+  </g>
+</svg>
+
+<div id="app">
+  <div class="topbar" id="topbar" style="display:none;">
+    <div class="topbar-row">
+      <div class="brand">
+        <svg viewBox="0 0 40 40"><g fill="none" stroke="#F2EBDA" stroke-width="2"><circle cx="20" cy="20" r="17"/><path d="M20 5 L20 12 M20 28 L20 35 M5 20 L12 20 M28 20 L35 20"/><path d="M20 12 L24 20 L20 28 L16 20 Z" fill="#D9612B" stroke="none"/></g></svg>
+        <div class="brand-text"><span id="brandName">北郷 防災デジタル<br>オリエンテーリング</span><small id="participantTag">-</small></div>
+      </div>
+      <div style="text-align:right;">
+        <div class="timer" id="timerDisplay">90:00</div>
+        <div class="scorepill" id="scorePill">得点 0 / 100</div>
+      </div>
+    </div>
+    <div class="rail" id="rail"></div>
+  </div>
+
+  <main>
+    <!-- START -->
+    <section class="screen active" id="screen-start">
+      <div class="hero">
+        <div class="eyebrow">Fukui / Katsuyama · Bousai Orienteering</div>
+        <h1 id="heroTitle">北郷 防災デジタル<br>オリエンテーリング</h1>
+        <p class="lead" id="heroLead">現地を歩き、GPSとQRコードで地点を確認しながら、防災クイズに答えて学ぶオリエンテーリングです。制限時間は<b>90分</b>、全6地点・最高得点<b>100点</b>。</p>
+      </div>
+
+      <div class="card">
+        <h3>参加のながれ</h3>
+        <p>① 地点に到着<br>② 「現在地確認」でGPS判定(座標がある地点のみ)<br>③ 掲示されたQRコードを読み取る<br>④ その場でクイズに回答<br>⑤ 次の地点へ移動 → GOALで結果発表</p>
+      </div>
+
+      <div class="field">
+        <label>参加番号<span style="color:var(--red)">*</span></label>
+        <input id="inputId" placeholder="例: 01" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>氏名<span style="color:var(--red)">*</span></label>
+        <input id="inputName" placeholder="例: 北郷 太郎">
+      </div>
+      <div class="field">
+        <label>チーム名(任意)</label>
+        <input id="inputTeam" placeholder="例: 1班">
+      </div>
+      <div id="startError" style="color:var(--red); font-size:12.5px; display:none; margin-bottom:6px;"></div>
+      <div id="cfgNote" style="font-size:12px; color:var(--red); margin-bottom:4px; line-height:1.6;"></div>
+      <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
+
+      <footer class="stafflink no-print">
+        <div style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-4</div>
+        <a onclick="showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
+        &nbsp;|&nbsp;
+        <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
+      </footer>
+    </section>
+
+    <!-- POINT (checkin) -->
+    <section class="screen" id="screen-point">
+      <div class="eyebrow" id="ptEyebrow" style="text-align:left; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--orange-deep); letter-spacing:0.15em;">CHECKPOINT</div>
+      <h1 id="ptName" style="font-family:'Zen Kaku Gothic New',sans-serif; font-size:22px; margin:6px 0 2px;"></h1>
+      <p id="ptDesc" style="color:var(--ink-soft); font-size:13.5px; margin-top:0;"></p>
+
+      <div class="card river" id="gpsCard">
+        <h3>① 現在地確認 (GPS)</h3>
+        <p id="gpsHelp">この地点への到着をGPSで確認します。「現在地を確認」を押してください。</p>
+        <div class="status-row">
+          <span class="status-badge wait" id="gpsBadge">未確認</span>
+          <span id="gpsDetail" style="font-size:12px; color:var(--ink-soft);"></span>
+        </div>
+        <div class="confirm-msg" id="gpsConfirm" style="display:none;"></div>
+        <button class="btn ghost" id="gpsBtn" onclick="checkGPS()">現在地を確認</button>
+        <a class="btn linklike" id="gpsSkipBtn" style="display:none;" onclick="skipGPS()">GPSが使えない場合:QR確認のみで進む</a>
+      </div>
+
+      <div class="card" id="qrCard">
+        <h3>② QRコード確認</h3>
+        <p>地点に設置されたQRコードを読み取ってください。カメラが使えない場合はコードを直接入力できます。</p>
+        <div class="status-row">
+          <span class="status-badge wait" id="qrBadge">未確認</span>
+        </div>
+        <div class="lock-hint" id="qrLockHint" style="display:none;">🔒 先に①の現在地確認を完了すると、QRコードの読み取りができます。</div>
+        <button class="btn ghost" id="qrScanBtn" onclick="startScan()">QRコードをスキャン</button>
+        <div class="scan-wrap" id="scanWrap" style="display:none; margin-top:10px;">
+          <video id="scanVideo" playsinline muted></video>
+          <div class="scan-frame"></div>
+        </div>
+        <div class="scan-hint" id="scanHint" style="display:none;"></div>
+        <button class="btn small ghost" id="scanStopBtn" style="display:none; margin-top:8px;" onclick="stopScan()">スキャンを中止</button>
+        <button class="btn linklike" id="manualToggleBtn" onclick="toggleManualQR()">コードを直接入力する</button>
+        <div id="manualQRWrap" style="display:none;">
+          <div class="field"><input id="manualQRInput" placeholder="コードを入力 (例: P01)"></div>
+          <button class="btn ghost small" onclick="submitManualQR()">確認する</button>
+        </div>
+        <div class="confirm-msg" id="qrMsg" style="display:none;"></div>
+      </div>
+
+      <button class="btn primary" id="toQuizBtn" disabled onclick="goToQuiz()">クイズに進む</button>
+    </section>
+
+    <!-- QUIZ -->
+    <section class="screen" id="screen-quiz">
+      <div class="eyebrow" style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--orange-deep); letter-spacing:0.15em;">QUESTION</div>
+      <h1 id="quizPointName" style="font-family:'Zen Kaku Gothic New',sans-serif; font-size:20px; margin:6px 0 14px;"></h1>
+      <div class="card gold">
+        <p id="quizQuestion" style="color:var(--ink); font-size:15px; font-weight:600; line-height:1.7;"></p>
+      </div>
+      <div id="quizOptions"></div>
+      <div class="card green explain" id="explainCard" style="display:none;">
+        <h3 id="explainResult"></h3>
+        <p id="explainText"></p>
+      </div>
+      <button class="btn primary" id="nextPointBtn" style="display:none;" onclick="advancePoint()">次の地点へ</button>
+    </section>
+
+    <!-- RESULT -->
+    <section class="screen" id="screen-result">
+      <div class="hero" style="padding-top:6px;">
+        <div class="eyebrow" id="resultEyebrow">RESULT</div>
+        <h1 id="resultTitle" style="font-size:22px;">お疲れさまでした</h1>
+      </div>
+      <div class="card gold" style="text-align:center;">
+        <h3>総合得点</h3>
+        <div class="bigscore"><span id="resultScoreOf100"></span><span> / 100</span></div>
+      </div>
+      <div class="card">
+        <h3>記録</h3>
+        <p id="resultTime"></p>
+        <p id="resultStatus"></p>
+        <p id="resultSaveNote" style="margin-top:8px; font-size:12.5px;"></p>
+      </div>
+      <button class="btn primary" onclick="loadRanking(); showScreen('screen-ranking');">ランキングを見る</button>
+      <button class="btn ghost" onclick="resetApp()">最初の画面に戻る(次の参加者)</button>
+    </section>
+
+    <!-- RANKING -->
+    <section class="screen" id="screen-ranking">
+      <div class="hero" style="padding-top:6px;">
+        <div class="eyebrow">RANKING</div>
+        <h1 style="font-size:22px;">ランキング</h1>
+        <p class="lead" style="font-size:12.5px;">ランキングは参加者全員に公開されます。</p>
+      </div>
+      <div id="rankingBody"><p style="text-align:center; color:var(--ink-soft); font-size:13px;">読み込み中...</p></div>
+      <button class="btn ghost no-print" onclick="loadRanking();">再読み込み</button>
+      <button class="btn ghost no-print" onclick="backFromRanking();">戻る</button>
+    </section>
+
+    <!-- STAFF QR PRINT -->
+    <section class="screen" id="screen-staff">
+      <div class="hero" style="padding-top:6px;">
+        <div class="eyebrow">STAFF</div>
+        <h1 style="font-size:20px;">QRコード印刷用シート</h1>
+        <p class="lead" style="font-size:12.5px;">各地点に掲示するQRコードです。印刷して現地に設置してください。</p>
+      </div>
+      <button class="btn ghost no-print" onclick="window.print()">この画面を印刷</button>
+      <button class="btn ghost no-print" onclick="showScreen('screen-start')">戻る</button>
+      <div class="qr-sheet" id="qrSheet"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ============ DATA: 既定値(スプレッドシートを読み込めない場合の予備) ============ */
+let CONFIG = { eventName:"北郷 防災デジタルオリエンテーリング", gpsRadius:50, qrRequired:true, timeLimitMin:90, maxScore:100 };
+
+let POINTS = [
+  {id:"P01", name:"北郷小学校", lat:36.086277, lng:136.428774, radius:50, qr:"P01", points:10, next:"P02", desc:"避難場所と災害種別を確認"},
+  {id:"P02", name:"河川観察ポイント", lat:null, lng:null, radius:50, qr:"P02", points:10, next:"P03", desc:"河川には近づかず安全な場所から観察"},
+  {id:"P03", name:"敷見川周辺・安全観察地点", lat:null, lng:null, radius:50, qr:"P03", points:10, next:"P04", desc:"大雨時の水害リスクを考える"},
+  {id:"P04", name:"避難判断ポイント", lat:null, lng:null, radius:50, qr:"P04", points:10, next:"P05", desc:"警戒レベルと避難行動を考える"},
+  {id:"P05", name:"地域防災ポイント", lat:null, lng:null, radius:50, qr:"P05", points:10, next:"GOAL", desc:"地域での助け合いを考える"},
+  {id:"GOAL", name:"北郷まちづくり会館", lat:36.085433, lng:136.434528, radius:50, qr:"GOAL", points:20, next:null, desc:"総合問題"}
+];
+
+let QUIZ = {
+  P01: {q:"災害時の避難先を考えるとき、最も重要なのは？", opts:{A:"ハザードマップ等で災害種別と避難先を確認する", B:"近い施設なら必ず避難する", C:"普段使う施設を優先する", D:"川に近い施設を選ぶ"}, correct:"A", points:10, exp:"避難先は災害種別や施設の利用条件を確認して選ぶ"},
+  P02: {q:"大雨で川が増水しているときの行動として適切なのは？", opts:{A:"川の様子を見に行く", B:"川に近づかず安全な場所で情報を確認する", C:"橋の上から撮影する", D:"水位が低ければ川岸へ行く"}, correct:"B", points:10, exp:"増水した河川には近づかず、安全を確保して情報を確認する"},
+  P03: {q:"大雨の際に避難経路を考えるとき、避けるべき場所は？", opts:{A:"安全な高い場所", B:"指定された安全な経路", C:"増水のおそれがある河川沿い", D:"周囲を確認できる場所"}, correct:"C", points:10, exp:"河川沿いなど浸水・増水の危険がある場所は避ける"},
+  P04: {q:"避難の判断で重要なのは？", opts:{A:"危険が高まる前に早めに行動する", B:"夜になってから考える", C:"道路が冠水してから移動する", D:"川の水位を見てから決める"}, correct:"A", points:10, exp:"避難が困難になる前に、情報と周囲の状況を踏まえて判断する"},
+  P05: {q:"地域で避難に時間がかかる人を支援する際に重要なのは？", opts:{A:"災害発生後だけ考える", B:"平常時から支援方法を考えておく", C:"本人だけに任せる", D:"避難所で初めて確認する"}, correct:"B", points:10, exp:"平常時から地域で支援方法や連絡方法を確認しておくことが重要"},
+  GOAL: {q:"防災オリエンテーリングで最も重要な目的は？", opts:{A:"速くゴールすることだけ", B:"防災情報を現地で確認し判断力を高めること", C:"クイズの点数だけを競うこと", D:"歩く距離を最大にすること"}, correct:"B", points:20, exp:"現地を確認しながら災害リスクと避難行動を学ぶことが目的"}
+};
+
+/* ============ STATE ============ */
+let state = {
+  participant:null, // {id, name, team}
+  pointIndex:0,
+  score:0,
+  startedAt:null,
+  gpsOk:false, qrOk:false, gpsDist:null,
+  answered:false,
+  timerInterval:null, remainingSec:0,
+  scanStream:null, scanRAF:null
+};
+
+/* ============ UTIL ============ */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+function fmtTime(sec){
+  sec=Math.max(0,Math.floor(sec));
+  const m=Math.floor(sec/60), s=sec%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function currentPoint(){ return POINTS[state.pointIndex]; }
+
+/* ============ START ============ */
+function startEvent(){
+  const id=document.getElementById('inputId').value.trim();
+  const name=document.getElementById('inputName').value.trim();
+  const team=document.getElementById('inputTeam').value.trim();
+  const err=document.getElementById('startError');
+  if(!id || !name){
+    err.textContent='参加番号と氏名を入力してください。';
+    err.style.display='block';
+    return;
+  }
+  err.style.display='none';
+  state.participant={id,name,team};
+  state.pointIndex=0;
+  state.score=0;
+  state.startedAt=Date.now();
+  state.remainingSec=CONFIG.timeLimitMin*60;
+
+  document.getElementById('topbar').style.display='block';
+  document.getElementById('participantTag').textContent=name+(team?' / '+team:'')+' (No.'+id+')';
+  buildRail();
+  startTimer();
+  postJSON({type:'start', id:id, name:name, team:team, startedAt:state.startedAt});
+  enterPoint();
+}
+
+function startTimer(){
+  clearInterval(state.timerInterval);
+  updateTimerDisplay();
+  state.timerInterval=setInterval(()=>{
+    state.remainingSec--;
+    updateTimerDisplay();
+    if(state.remainingSec<=0){
+      clearInterval(state.timerInterval);
+      timeUp();
+    }
+  },1000);
+}
+function updateTimerDisplay(){
+  const el=document.getElementById('timerDisplay');
+  el.textContent=fmtTime(state.remainingSec);
+  el.classList.remove('low','critical');
+  if(state.remainingSec<=300) el.classList.add('critical');
+  else if(state.remainingSec<=600) el.classList.add('low');
+  document.getElementById('scorePill').textContent='得点 '+state.score+' / '+CONFIG.maxScore;
+}
+function timeUp(){
+  stopScan();
+  finishEvent(false);
+}
+
+/* ============ RAIL ============ */
+function buildRail(){
+  const rail=document.getElementById('rail');
+  rail.innerHTML='';
+  POINTS.forEach((p,i)=>{
+    const node=document.createElement('div');
+    node.className='rail-node';
+    const dot=document.createElement('div');
+    dot.className='rail-dot'+(i<state.pointIndex?' done':(i===state.pointIndex?' current':''));
+    dot.textContent=(i===POINTS.length-1)?'G':String(i+1);
+    node.appendChild(dot);
+    rail.appendChild(node);
+    if(i<POINTS.length-1){
+      const line=document.createElement('div');
+      line.className='rail-line'+(i<state.pointIndex?' done':'');
+      rail.appendChild(line);
+    }
+  });
+}
+
+/* ============ CHECK-IN SCREEN ============ */
+function enterPoint(){
+  const p=currentPoint();
+  state.hasGps = !(p.lat===null || p.lng===null);   // 緯度経度が設定されている地点はGPS判定あり
+  state.gpsOk = !state.hasGps;
+  state.qrOk = !CONFIG.qrRequired;
+  state.gpsDist=null; state.gpsLat=null; state.gpsLng=null; state.checkinPosted=false;
+  stopScan();
+  buildRail();
+
+  document.getElementById('ptName').textContent=p.name;
+  document.getElementById('ptDesc').textContent=p.desc;
+
+  const gpsBadge=document.getElementById('gpsBadge');
+  document.getElementById('gpsHelp').textContent = state.hasGps
+    ? 'この地点への到着をGPSで確認します。「現在地を確認」を押してください。(半径'+CONFIG.gpsRadius+'m以内)'
+    : 'この地点はGPS座標が未設定のため、QRコード確認のみで到着を判定します。';
+  const gpsBtn=document.getElementById('gpsBtn');
+  gpsBtn.style.display = state.hasGps ? 'block' : 'none';
+  gpsBtn.disabled=false; gpsBtn.textContent='現在地を確認';
+  document.getElementById('gpsSkipBtn').style.display='none';
+  document.getElementById('gpsDetail').textContent='';
+  document.getElementById('gpsConfirm').style.display='none';
+  gpsBadge.textContent = state.hasGps ? '未確認' : '判定なし';
+  gpsBadge.className='status-badge '+(state.hasGps?'wait':'skip');
+
+  document.getElementById('qrBadge').textContent = CONFIG.qrRequired ? '未確認' : '判定なし';
+  document.getElementById('qrBadge').className = 'status-badge ' + (CONFIG.qrRequired ? 'wait' : 'skip');
+  document.getElementById('qrMsg').style.display='none';
+  document.getElementById('manualQRWrap').style.display='none';
+  document.getElementById('manualQRInput').value='';
+
+  setLocks();
+  refreshQuizButton();
+  showScreen('screen-point');
+}
+
+/* GPSが使える地点は、現在地確認が済むまでQR/コード入力を使えない */
+function setLocks(){
+  const locked = !state.gpsOk;
+  const done = state.qrOk && CONFIG.qrRequired;
+  document.getElementById('qrScanBtn').disabled = locked || done;
+  document.getElementById('manualToggleBtn').disabled = locked || done;
+  document.getElementById('qrLockHint').style.display = (locked && CONFIG.qrRequired) ? 'block' : 'none';
+  if(locked || done){
+    stopScan();
+    document.getElementById('manualQRWrap').style.display='none';
+  }
+}
+
+function showConfirm(id, text, isErr){
+  const el=document.getElementById(id);
+  el.textContent=text;
+  el.className='confirm-msg'+(isErr?' err':'');
+  el.style.display='block';
+}
+
+function checkGPS(){
+  const p=currentPoint();
+  const btn=document.getElementById('gpsBtn');
+  const badge=document.getElementById('gpsBadge');
+  const detail=document.getElementById('gpsDetail');
+  if(!navigator.geolocation){
+    detail.textContent='この端末では位置情報が利用できません。';
+    document.getElementById('gpsSkipBtn').style.display='block';
+    return;
+  }
+  btn.disabled=true; btn.textContent='確認中...';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    btn.disabled=false; btn.textContent='現在地を再確認';
+    const dist=haversine(pos.coords.latitude,pos.coords.longitude,p.lat,p.lng);
+    state.gpsDist=dist; state.gpsLat=pos.coords.latitude; state.gpsLng=pos.coords.longitude;
+    if(dist<=CONFIG.gpsRadius){
+      state.gpsOk=true;
+      badge.textContent='確認済み';
+      badge.className='status-badge ok';
+      detail.textContent='';
+      showConfirm('gpsConfirm','✅ 確認済み(現在地を確認しました・距離 約'+Math.round(dist)+'m)');
+      btn.style.display='none';
+      document.getElementById('gpsSkipBtn').style.display='none';
+      postCheckin('到着確認(GPS)', state.gpsLat, state.gpsLng, Math.round(dist));
+    }else{
+      state.gpsOk=false;
+      badge.textContent='範囲外';
+      badge.className='status-badge wait';
+      detail.textContent='';
+      showConfirm('gpsConfirm','地点まで約'+Math.round(dist)+'m。半径'+CONFIG.gpsRadius+'m以内に近づいてから再確認してください。', true);
+    }
+    setLocks();
+    refreshQuizButton();
+  }, e=>{
+    btn.disabled=false; btn.textContent='現在地を再確認';
+    detail.textContent='位置情報を取得できませんでした('+(e.message||'許可が必要です')+')。';
+    document.getElementById('gpsSkipBtn').style.display='block';
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
+}
+
+function skipGPS(){
+  state.gpsOk=true; state.gpsDist=null;
+  const b=document.getElementById('gpsBadge');
+  b.textContent='判定スキップ'; b.className='status-badge skip';
+  document.getElementById('gpsSkipBtn').style.display='none';
+  document.getElementById('gpsBtn').style.display='none';
+  showConfirm('gpsConfirm','⚠ GPS判定をスキップしました(QR確認のみで進みます)', true);
+  setLocks();
+  refreshQuizButton();
+}
+function refreshQuizButton(){
+  document.getElementById('toQuizBtn').disabled = !(state.gpsOk && state.qrOk);
+}
+
+/* ---- 到着記録(回答ログに現在地を書き込む) ---- */
+function postCheckin(method, lat, lng, dist){
+  if(state.checkinPosted || !state.participant) return;
+  state.checkinPosted=true;
+  postJSON({type:'checkin', id:state.participant.id, pointId:currentPoint().id, method:method,
+    lat: lat==null?'':lat, lng: lng==null?'':lng, gpsDist: dist==null?'':dist});
+}
+/* GPS座標が無い地点でも、位置が取れれば記録する */
+function recordArrival(method){
+  if(state.checkinPosted) return;
+  state.checkinPosted=true;
+  const send=(lat,lng)=>{ postJSON({type:'checkin', id:state.participant.id, pointId:currentPoint().id, method:method, lat:lat, lng:lng, gpsDist:''}); if(lat!=='') { state.gpsLat=lat; state.gpsLng=lng; } };
+  if(!navigator.geolocation){ send('',''); return; }
+  navigator.geolocation.getCurrentPosition(pos=>send(pos.coords.latitude,pos.coords.longitude), ()=>send('',''), {enableHighAccuracy:true, timeout:8000, maximumAge:30000});
+}
+
+/* ---- QR scan ---- */
+function setScanHint(t){
+  const h=document.getElementById('scanHint');
+  h.textContent=t; h.style.display = t ? 'block' : 'none';
+}
+async function startScan(){
+  if(state.scanStream || !state.gpsOk) return;
+  const wrap=document.getElementById('scanWrap');
+  const video=document.getElementById('scanVideo');
+  document.getElementById('qrMsg').style.display='none';
+  let stream;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+  }catch(err){
+    document.getElementById('manualQRWrap').style.display='block';
+    showConfirm('qrMsg','カメラを起動できませんでした。コードを直接入力してください。', true);
+    return;
+  }
+  state.scanStream=stream;
+  wrap.style.display='block';
+  document.getElementById('scanStopBtn').style.display='inline-block';
+  setScanHint('読み取り中… QRコードを枠の中に入れてください');
+  video.srcObject=stream;
+  video.setAttribute('playsinline','true');
+  try{ await video.play(); }catch(e){}
+
+  let detector=null;
+  if('BarcodeDetector' in window){ try{ detector=new BarcodeDetector({formats:['qr_code']}); }catch(e){ detector=null; } }
+  const canvas=document.createElement('canvas');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  let busy=false; const started=Date.now(); let lastMismatch='';
+  state.scanTimer=setInterval(async ()=>{
+    if(busy || !state.scanStream) return;
+    if(video.readyState<2 || !video.videoWidth) return;
+    busy=true;
+    try{
+      let text=null;
+      if(detector){
+        const r=await detector.detect(video);
+        if(r && r.length) text=r[0].rawValue;
+      }
+      if(!text && window.jsQR){
+        const scale=Math.min(1, 640/Math.max(video.videoWidth, video.videoHeight));
+        const w=Math.round(video.videoWidth*scale), h=Math.round(video.videoHeight*scale);
+        canvas.width=w; canvas.height=h;
+        ctx.drawImage(video,0,0,w,h);
+        const img=ctx.getImageData(0,0,w,h);
+        const c=jsQR(img.data,w,h,{inversionAttempts:'attemptBoth'});
+        if(c && c.data) text=c.data;
+      }
+      if(text){
+        if(matchesPoint(text)){ acceptQR(); }
+        else if(text!==lastMismatch){ lastMismatch=text; setScanHint('この地点のコードではありません(読み取り: '+text+')。この地点のQRコードを読み取ってください。'); }
+      }else if(Date.now()-started>15000){
+        setScanHint('読み取れない場合は、QRコードに近づく・明るい場所で・画面の反射を避けてください。「コードを直接入力する」も使えます。');
+      }
+    }catch(e){}
+    busy=false;
+  }, 200);
+}
+function stopScan(){
+  if(state.scanTimer){ clearInterval(state.scanTimer); state.scanTimer=null; }
+  if(state.scanStream){
+    state.scanStream.getTracks().forEach(t=>t.stop());
+    state.scanStream=null;
+  }
+  const v=document.getElementById('scanVideo'); if(v) v.srcObject=null;
+  const w=document.getElementById('scanWrap'); if(w) w.style.display='none';
+  const b=document.getElementById('scanStopBtn'); if(b) b.style.display='none';
+  setScanHint('');
+}
+function matchesPoint(text){
+  return text.trim().toUpperCase()===currentPoint().qr.toUpperCase();
+}
+function acceptQR(){
+  stopScan();
+  state.qrOk=true;
+  const badge=document.getElementById('qrBadge');
+  badge.textContent='確認済み';
+  badge.className='status-badge ok';
+  showConfirm('qrMsg','✅ 確認済み(QRコードを確認しました)');
+  document.getElementById('manualQRWrap').style.display='none';
+  setLocks();
+  recordArrival('到着確認(QR)');
+  refreshQuizButton();
+}
+function toggleManualQR(){
+  if(!state.gpsOk) return;
+  const w=document.getElementById('manualQRWrap');
+  w.style.display = (w.style.display==='none'||!w.style.display) ? 'block' : 'none';
+}
+function submitManualQR(){
+  if(!state.gpsOk) return;
+  const val=document.getElementById('manualQRInput').value;
+  if(!val) return;
+  if(matchesPoint(val)) acceptQR();
+  else showConfirm('qrMsg','コードが一致しません。もう一度確認してください。', true);
+}
+
+/* ============ QUIZ ============ */
+function goToQuiz(){
+  recordArrival('到着確認');
+  const p=currentPoint();
+  const q=QUIZ[p.id];
+  state.answered=false;
+  document.getElementById('quizPointName').textContent=p.name;
+  document.getElementById('quizQuestion').textContent=q.q;
+  document.getElementById('explainCard').style.display='none';
+  document.getElementById('nextPointBtn').style.display='none';
+  document.getElementById('nextPointBtn').textContent = (p.next===null) ? '結果を見る' : '次の地点へ';
+
+  const optWrap=document.getElementById('quizOptions');
+  optWrap.innerHTML='';
+  ['A','B','C','D'].forEach(k=>{
+    const b=document.createElement('button');
+    b.className='opt-btn';
+    b.innerHTML='<span class="tag">'+k+'</span>'+q.opts[k];
+    b.onclick=()=>answerQuiz(k);
+    optWrap.appendChild(b);
+  });
+  showScreen('screen-quiz');
+}
+
+function answerQuiz(choice){
+  if(state.answered) return;
+  state.answered=true;
+  const p=currentPoint();
+  const q=QUIZ[p.id];
+  const correct = choice===q.correct;
+  const earned = correct ? q.points : 0;
+  state.score += earned;
+
+  document.querySelectorAll('#quizOptions .opt-btn').forEach((btn,i)=>{
+    const key=['A','B','C','D'][i];
+    btn.disabled=true;
+    if(key===q.correct) btn.classList.add('correct');
+    else if(key===choice) btn.classList.add('wrong');
+    else btn.classList.add('dim');
+  });
+
+  const ec=document.getElementById('explainCard');
+  ec.style.display='block';
+  ec.className='card explain '+(correct?'green':'red');
+  document.getElementById('explainResult').textContent = correct ? ('正解！ +'+earned+'点') : ('不正解 (正解: '+q.correct+')');
+  document.getElementById('explainText').textContent=q.exp;
+
+  document.getElementById('nextPointBtn').style.display='block';
+  updateTimerDisplay();
+  logAnswer(p.id, choice, correct, earned);
+}
+
+function advancePoint(){
+  const p=currentPoint();
+  if(p.next===null){
+    finishEvent(true);
+    return;
+  }
+  state.pointIndex++;
+  enterPoint();
+}
+
+/* ============ RESULT ============ */
+function finishEvent(completed){
+  clearInterval(state.timerInterval);
+  const elapsedSec = Math.round((Date.now()-state.startedAt)/1000);
+  document.getElementById('resultEyebrow').textContent = completed ? 'GOAL' : 'TIME UP';
+  document.getElementById('resultTitle').textContent = completed ? 'ゴールしました！' : '制限時間になりました';
+  document.getElementById('resultScoreOf100').textContent = state.score;
+  document.getElementById('resultTime').textContent = '所要時間: '+fmtTime(elapsedSec)+'　(残り地点: '+(completed?'なし':(POINTS.length-state.pointIndex)+'地点')+')';
+  document.getElementById('resultStatus').textContent = completed ? '全地点を完走しました。' : '時間内に全地点を回りきれませんでした。';
+  const note=document.getElementById('resultSaveNote');
+  note.textContent='';
+  saveParticipantRecord(true, completed, elapsedSec).then(ok=>{
+    note.textContent = ok ? '記録をランキングに保存しました。' : '記録はランキングに保存されませんでした。この画面をスタッフにお見せください。';
+  });
+  showScreen('screen-result');
+}
+
+/* ============ STORAGE (Google Apps Script + スプレッドシート) ============ */
+// ★ここに Apps Script の「ウェブアプリURL」(…/exec)を貼り付けます。空欄ならランキング機能は無効になります。
+const API_URL = "https://script.google.com/macros/s/AKfycbz4rw3cuoOMQZ8Ls3dSHMlF__yu4pIYPwMxq9gbEuG_Tq22ajk0krowk5Ot2fSo_LW4/exec?action=config";
+
+async function postJSON(obj){
+  if(!API_URL) return false;
+  try{
+    const r = await fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(obj)});
+    const j = await r.json();
+    return !!j.ok;
+  }catch(e){ console.error('post failed',e); return false; }
+}
+async function saveParticipantRecord(isFinal, completed, elapsedSec){
+  if(!state.participant || !isFinal) return false;
+  return postJSON({type:'result', id:state.participant.id, name:state.participant.name, team:state.participant.team||'',
+    score:state.score, elapsedSec:elapsedSec, completed:!!completed, lastPoint:currentPoint().id, startedAt:state.startedAt, endedAt:Date.now()});
+}
+async function logAnswer(pointId, choice, correct, earned){
+  if(!state.participant) return;
+  postJSON({type:'log', id:state.participant.id, name:state.participant.name, pointId:pointId, choice:choice, correct:correct, earned:earned,
+    gpsDist: state.gpsDist==null ? '' : Math.round(state.gpsDist), lat: state.gpsLat==null ? '' : state.gpsLat, lng: state.gpsLng==null ? '' : state.gpsLng});
+}
+async function loadRanking(){
+  const body=document.getElementById('rankingBody');
+  body.innerHTML='<p style="text-align:center; color:var(--ink-soft); font-size:13px;">読み込み中...</p>';
+  if(!API_URL){
+    body.innerHTML='<p style="text-align:center; color:var(--ink-soft); font-size:13px; line-height:1.7;">ランキングは設定されていません。<br>得点は結果画面でご確認ください。</p>';
+    return;
+  }
+  try{
+    const r = await fetch(API_URL);
+    const j = await r.json();
+    const items = j.items || [];
+    if(items.length===0){
+      body.innerHTML='<p style="text-align:center; color:var(--ink-soft); font-size:13px;">まだ記録がありません。</p>';
+      return;
+    }
+    items.sort((a,b)=> (b.score-a.score) || ((a.elapsedSec||99999)-(b.elapsedSec||99999)) );
+    let html='<table class="rank"><tr><th>順位</th><th>氏名</th><th>チーム</th><th>得点</th><th>時間</th></tr>';
+    items.forEach((it,i)=>{
+      const isMe = state.participant && String(it.id)===String(state.participant.id);
+      html+='<tr class="'+(isMe?'me':'')+'"><td class="rankno">'+(i+1)+'</td><td>'+escapeHtml(it.name)+(it.completed?'':' <small style="color:var(--gold)">(未完走)</small>')+'</td><td>'+escapeHtml(it.team||'-')+'</td><td class="rankno">'+it.score+'</td><td class="rankno">'+(it.elapsedSec!=null&&it.elapsedSec!==''?fmtTime(it.elapsedSec):'-')+'</td></tr>';
+    });
+    html+='</table>';
+    body.innerHTML=html;
+  }catch(e){
+    body.innerHTML='<p style="text-align:center; color:var(--red); font-size:13px;">読み込みに失敗しました。</p>';
+  }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function backFromRanking(){
+  if(state.participant && document.getElementById('resultScoreOf100').textContent!==''){
+    showScreen('screen-result');
+  }else{
+    showScreen('screen-start');
+  }
+}
+
+function resetApp(){
+  clearInterval(state.timerInterval);
+  stopScan();
+  state={participant:null,pointIndex:0,score:0,startedAt:null,gpsOk:false,qrOk:false,gpsDist:null,answered:false,timerInterval:null,remainingSec:0,scanStream:null,scanRAF:null};
+  document.getElementById('inputId').value='';
+  document.getElementById('inputName').value='';
+  document.getElementById('inputTeam').value='';
+  document.getElementById('topbar').style.display='none';
+  showScreen('screen-start');
+}
+
+/* ============ STAFF QR SHEET ============ */
+function buildStaffSheet(){
+  const sheet=document.getElementById('qrSheet');
+  if(sheet.dataset.built) return;
+  sheet.dataset.built='1';
+  POINTS.forEach(p=>{
+    const page=document.createElement('div');
+    page.className='qr-page';
+    page.innerHTML='<h4>'+p.name+'</h4><div class="pid">CODE: '+p.qr+' ／ 地点ID: '+p.id+'</div><div class="qrbox" id="qrbox-'+p.id+'"></div><div class="note">'+p.desc+'（配点 '+p.points+'点）</div>';
+    sheet.appendChild(page);
+  });
+  POINTS.forEach(p=>{
+    if(window.QRCode){
+      new QRCode(document.getElementById('qrbox-'+p.id), {text:p.qr, width:180, height:180});
+    }
+  });
+}
+
+function applyConfig(){
+  document.title = CONFIG.eventName;
+  document.getElementById('brandName').textContent = CONFIG.eventName;
+  document.getElementById('heroTitle').textContent = CONFIG.eventName;
+  document.getElementById('heroLead').innerHTML = '現地を歩き、GPSとQRコードで地点を確認しながら、防災クイズに答えて学ぶオリエンテーリングです。制限時間は<b>'+CONFIG.timeLimitMin+'分</b>、全'+POINTS.length+'地点・最高得点<b>'+CONFIG.maxScore+'点</b>。';
+  document.getElementById('startBtn').textContent = 'スタート(制限時間'+CONFIG.timeLimitMin+'分)';
+  document.getElementById('timerDisplay').textContent = fmtTime(CONFIG.timeLimitMin*60);
+  const sheet=document.getElementById('qrSheet');
+  sheet.innerHTML=''; delete sheet.dataset.built;
+  buildStaffSheet();
+}
+async function loadRemoteConfig(){
+  const btn=document.getElementById('startBtn');
+  const note=document.getElementById('cfgNote');
+  if(!API_URL){ applyConfig(); return; }
+  btn.disabled=true; btn.textContent='設定を読み込み中...';
+  try{
+    const r = await fetch(API_URL+'?action=config');
+    const text = await r.text();
+    let j;
+    try{ j = JSON.parse(text); }
+    catch(pe){ throw new Error('応答がJSONではありません(アクセス権の設定が「全員」でない、またはURLが誤っている可能性)'); }
+    if(!j.ok) throw new Error('スクリプトのエラー: '+(j.error||'不明'));
+    if(!j.points || !j.quiz) throw new Error('古いスクリプトのままです(Code.gsを貼り直し、「新バージョン」で再デプロイしてください)');
+    CONFIG=j.config; POINTS=j.points; QUIZ=j.quiz;
+  }catch(e){
+    console.error('config load failed',e);
+    let why = e.message||String(e);
+    if(/Failed to fetch|NetworkError|Load failed/i.test(why)) why='通信できません。Apps Scriptの「アクセスできるユーザー」が「全員」か、API_URLが「…/exec」で終わるURLかを確認してください。('+why+')';
+    note.textContent='※スプレッドシートの設定を読み込めなかったため、内蔵の設定で動作します。原因: '+why;
+  }
+  applyConfig();
+  btn.disabled=false;
+}
+loadRemoteConfig();
+</script>
+</body>
+</html>
