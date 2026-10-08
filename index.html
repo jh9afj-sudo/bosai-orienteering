@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>北郷 防災デジタルオリエンテーリング</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
@@ -209,6 +211,11 @@ table.qs td.num{font-family:'JetBrains Mono',monospace; font-weight:700;}
 .ok{color:var(--green); font-weight:700;} .ng{color:var(--red); font-weight:700;} .na{color:var(--ink-soft); opacity:.6;}
 .admin-h{font-family:'Zen Kaku Gothic New',sans-serif; font-size:15px; font-weight:900; margin:22px 0 2px;}
 .admin-sub{font-size:11px; color:var(--ink-soft); margin:0 0 4px; line-height:1.6;}
+.map-box{height:62vh; min-height:340px; border:2px solid var(--ink); border-radius:6px; overflow:hidden; margin:10px 0 8px; z-index:0;}
+.pt-mark{background:var(--bar-bg); color:var(--bar-fg); font-family:'JetBrains Mono',monospace; font-weight:700; font-size:10px; padding:2px 5px; border-radius:3px; white-space:nowrap; border:1px solid var(--bar-fg);}
+.legend{display:flex; flex-wrap:wrap; gap:12px; font-size:12px; margin:4px 0; color:var(--ink-soft);}
+.legend i{display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:5px; vertical-align:-1px; border:1.5px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,0.3);}
+.leaflet-tooltip.nm{font-family:'Noto Sans JP',sans-serif; font-weight:700; font-size:11px; padding:1px 5px;}
 footer.stafflink{ text-align:center; padding:6px 0 26px;}
 footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underline; cursor:pointer;}
 
@@ -282,7 +289,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
-        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-9</div>
+        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-10</div>
         <a onclick="rankingReturn='start'; showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
         &nbsp;|&nbsp;
         <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
@@ -410,8 +417,28 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn primary" onclick="adminCmd('start')">ゲーム開始</button>
       <button class="btn danger" onclick="adminCmd('end')">ゲーム終了</button>
       <button class="btn ghost" onclick="refreshAdmin()">状況更新</button>
+      <button class="btn ghost" onclick="openMap()">参加チームマップ</button>
       <button class="btn ghost" onclick="rankingReturn='admin'; loadRanking(); showScreen('screen-ranking');">ランキング</button>
       <button class="btn linklike" onclick="showScreen('screen-start')">スタート画面に戻る</button>
+    </section>
+
+    <!-- PARTICIPANT MAP -->
+    <section class="screen" id="screen-map">
+      <div class="hero" style="padding-top:6px;">
+        <div class="eyebrow">MAP</div>
+        <h1 style="font-size:20px;">参加チームマップ</h1>
+      </div>
+      <div class="legend">
+        <span><i style="background:#D9612B"></i>参加中</span>
+        <span><i style="background:#4B7A52"></i>完走</span>
+        <span><i style="background:#8A8F96"></i>未完走</span>
+        <span><span class="pt-mark" style="font-size:9px;">P01</span> 地点</span>
+      </div>
+      <div class="map-box" id="mapBox"></div>
+      <div id="mapMsg" style="font-size:12.5px; color:var(--ink-soft); text-align:center; line-height:1.7;"></div>
+      <p class="admin-sub" style="text-align:center;">位置は、地点での到着確認(GPS/QR)の時点で記録された最新の位置です。リアルタイムの現在地ではありません。</p>
+      <button class="btn ghost" onclick="loadMap()">更新</button>
+      <button class="btn ghost" onclick="showScreen('screen-admin')">管理者画面に戻る</button>
     </section>
 
     <!-- STAFF QR PRINT -->
@@ -991,6 +1018,66 @@ async function refreshAdmin(silent){
     msg.textContent='取得できませんでした: '+(e.message||e);
   }
 }
+/* ============ MAP ============ */
+let leafMap=null, mapLayer=null, mapTimer=null;
+function openMap(){
+  showScreen('screen-map');
+  if(!window.L){ document.getElementById('mapMsg').textContent='地図ライブラリを読み込めませんでした。通信状況を確認してください。'; return; }
+  if(!leafMap){
+    leafMap=L.map('mapBox',{zoomControl:true}).setView([36.0863,136.4288],15);
+    L.tileLayer('https://cyberjapan.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18, attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'}).addTo(leafMap);
+    mapLayer=L.layerGroup().addTo(leafMap);
+  }
+  setTimeout(()=>leafMap.invalidateSize(),50);
+  loadMap(true);
+  clearInterval(mapTimer);
+  mapTimer=setInterval(()=>{ if(document.getElementById('screen-map').classList.contains('active')) loadMap(true); },30000);
+}
+async function loadMap(keepView){
+  const msg=document.getElementById('mapMsg');
+  if(!API_URL){ msg.textContent='API_URLが未設定です。'; return; }
+  msg.textContent='更新中…';
+  try{
+    const r=await fetch(API_URL+'?action=stats&pass='+encodeURIComponent(adminPass));
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'不明なエラー');
+    renderMap(j.participants||[], keepView===true);
+  }catch(e){
+    msg.textContent='取得できませんでした: '+(e.message||e);
+  }
+}
+function renderMap(ps, keepView){
+  mapLayer.clearLayers();
+  const bounds=[];
+  // 地点(緯度経度が設定されている地点のみ)
+  POINTS.forEach(p=>{
+    if(p.lat===null||p.lng===null) return;
+    L.circle([p.lat,p.lng],{radius:CONFIG.gpsRadius,color:'#356E90',weight:1.5,dashArray:'4 4',fillOpacity:0.08}).addTo(mapLayer);
+    L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:'<div class="pt-mark">'+escapeHtml(p.id)+'</div>',iconSize:null}),title:p.name}).bindPopup(escapeHtml(p.id+' '+p.name)).addTo(mapLayer);
+    bounds.push([p.lat,p.lng]);
+  });
+  // 参加者(最新の位置が記録されている人)
+  let noLoc=0, shown=0;
+  ps.forEach(p=>{
+    if(!p.loc){ noLoc++; return; }
+    shown++;
+    const color = p.status==='完走' ? '#4B7A52' : (p.status==='未完走' ? '#8A8F96' : '#D9612B');
+    const t = p.loc.at ? new Date(p.loc.at) : null;
+    const tm = (t && !isNaN(t)) ? String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0') : '-';
+    const pn = POINTS.find(x=>x.id===p.loc.pid);
+    const html='<b>'+escapeHtml(p.name)+'</b>'+(p.team?'('+escapeHtml(p.team)+')':'')+'<br>No.'+escapeHtml(p.id)+' / '+escapeHtml(p.status)+' / '+p.score+'点<br>最終記録: '+escapeHtml(pn?pn.id+' '+pn.name:p.loc.pid)+'('+tm+')';
+    L.circleMarker([p.loc.lat,p.loc.lng],{radius:9,color:'#fff',weight:2,fillColor:color,fillOpacity:1})
+      .bindTooltip(escapeHtml(p.name),{permanent:true,direction:'top',offset:[0,-8],className:'nm'})
+      .bindPopup(html).addTo(mapLayer);
+    bounds.push([p.loc.lat,p.loc.lng]);
+  });
+  if(!keepView || !leafMap._fitted){
+    if(bounds.length) leafMap.fitBounds(bounds,{padding:[30,30],maxZoom:17});
+    leafMap._fitted=true;
+  }
+  document.getElementById('mapMsg').textContent='表示 '+shown+'名 / 位置の記録なし '+noLoc+'名(最終更新 '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+')';
+}
+
 function fmtNum(v){ return (v===null||v===undefined) ? '−' : String(v); }
 function renderQuestionStats(qs){
   const el=document.getElementById('qStats');
