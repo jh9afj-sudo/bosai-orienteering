@@ -264,7 +264,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
-        <div style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-4</div>
+        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-5</div>
         <a onclick="showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
         &nbsp;|&nbsp;
         <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
@@ -806,7 +806,7 @@ function finishEvent(completed){
 
 /* ============ STORAGE (Google Apps Script + スプレッドシート) ============ */
 // ★ここに Apps Script の「ウェブアプリURL」(…/exec)を貼り付けます。空欄ならランキング機能は無効になります。
-const API_URL = "https://script.google.com/macros/s/AKfycbz4rw3cuoOMQZ8Ls3dSHMlF__yu4pIYPwMxq9gbEuG_Tq22ajk0krowk5Ot2fSo_LW4/exec?action=config";
+const API_URL = "https://script.google.com/macros/s/AKfycbz4rw3cuoOMQZ8Ls3dSHMlF__yu4pIYPwMxq9gbEuG_Tq22ajk0krowk5Ot2fSo_LW4/exec";
 
 async function postJSON(obj){
   if(!API_URL) return false;
@@ -926,6 +926,7 @@ async function loadRemoteConfig(){
   applyConfig();
   btn.disabled=false;
 }
+document.getElementById('verLine').textContent += ' / 接続先: ' + (API_URL ? '…'+API_URL.slice(-14) : '未設定');
 loadRemoteConfig();
 </script>
 </body>
