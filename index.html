@@ -191,6 +191,15 @@ table.rank td{padding:9px 6px; border-bottom:1px solid var(--paper-line);}
 table.rank tr.me{background:rgba(217,97,43,0.12);}
 .rankno{font-family:'JetBrains Mono',monospace; font-weight:700;}
 
+.stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;}
+.stat{background:var(--paper-dark); border:1px solid var(--paper-line); border-radius:6px; padding:12px 8px; text-align:center;}
+.stat .lbl{font-size:12px; font-weight:700; color:var(--ink-soft);}
+.stat .num{font-family:'JetBrains Mono',monospace; font-size:30px; font-weight:700; color:var(--ink); margin-top:2px;}
+.stat.wide{grid-column:1 / -1;}
+.gamestate{display:flex; align-items:center; justify-content:center; gap:10px; margin:12px 0 4px; font-weight:700; font-size:15px;}
+.gamestate .badge{font-family:'JetBrains Mono',monospace; font-size:13px; padding:5px 12px; border-radius:20px; border:1.5px solid var(--green); color:var(--green); background:rgba(75,122,82,0.12);}
+.gamestate .badge.off{border-color:var(--red); color:var(--red); background:rgba(178,58,46,0.1);}
+.btn.danger{background:var(--red); color:#fff; box-shadow:0 3px 0 rgba(0,0,0,0.25);}
 footer.stafflink{ text-align:center; padding:6px 0 26px;}
 footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underline; cursor:pointer;}
 
@@ -264,10 +273,12 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
-        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-6</div>
-        <a onclick="showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
+        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-7</div>
+        <a onclick="rankingReturn='start'; showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
         &nbsp;|&nbsp;
         <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
+        &nbsp;|&nbsp;
+        <a onclick="openAdmin()">管理者画面</a>
       </footer>
     </section>
 
@@ -361,6 +372,29 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn ghost no-print" onclick="backFromRanking();">戻る</button>
     </section>
 
+    <!-- ADMIN -->
+    <section class="screen" id="screen-admin">
+      <div class="hero" style="padding-top:6px;">
+        <div class="eyebrow">ADMIN</div>
+        <h1 id="adminEvent" style="font-size:20px;">管理者画面</h1>
+      </div>
+      <div class="gamestate"><span>ゲーム状態:</span><span class="badge" id="adminStatus">-</span></div>
+      <div class="stat-grid">
+        <div class="stat wide"><div class="lbl">参加チーム</div><div class="num" id="stTeams">0</div></div>
+        <div class="stat"><div class="lbl">参加中</div><div class="num" id="stActive">0</div></div>
+        <div class="stat"><div class="lbl">完走</div><div class="num" id="stFinished">0</div></div>
+        <div class="stat"><div class="lbl">QRクリア</div><div class="num" id="stQr">0</div></div>
+        <div class="stat"><div class="lbl">クイズ正解</div><div class="num" id="stCorrect">0</div></div>
+      </div>
+      <div id="adminMsg" style="font-size:12.5px; color:var(--ink-soft); text-align:center; min-height:18px;"></div>
+      <div class="field"><label>管理パスコード(設定されている場合のみ)</label><input id="adminPassInput" type="password" placeholder="パスコード" oninput="adminPass=this.value"></div>
+      <button class="btn primary" onclick="adminCmd('start')">ゲーム開始</button>
+      <button class="btn danger" onclick="adminCmd('end')">ゲーム終了</button>
+      <button class="btn ghost" onclick="refreshAdmin()">状況更新</button>
+      <button class="btn ghost" onclick="rankingReturn='admin'; loadRanking(); showScreen('screen-ranking');">ランキング</button>
+      <button class="btn linklike" onclick="showScreen('screen-start')">スタート画面に戻る</button>
+    </section>
+
     <!-- STAFF QR PRINT -->
     <section class="screen" id="screen-staff">
       <div class="hero" style="padding-top:6px;">
@@ -429,7 +463,9 @@ function fmtTime(sec){
 function currentPoint(){ return POINTS[state.pointIndex]; }
 
 /* ============ START ============ */
+function gameIsOpen(){ return !CONFIG.gameStatus || CONFIG.gameStatus==='実施中'; }
 function startEvent(){
+  if(!gameIsOpen()){ return; }
   const id=document.getElementById('inputId').value.trim();
   const name=document.getElementById('inputName').value.trim();
   const team=document.getElementById('inputTeam').value.trim();
@@ -855,7 +891,9 @@ async function loadRanking(){
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+let rankingReturn='start';
 function backFromRanking(){
+  if(rankingReturn==='admin'){ rankingReturn='start'; showScreen('screen-admin'); return; }
   if(state.participant && document.getElementById('resultScoreOf100').textContent!==''){
     showScreen('screen-result');
   }else{
@@ -892,6 +930,63 @@ function buildStaffSheet(){
   });
 }
 
+/* ============ ADMIN ============ */
+let adminPass='';
+let adminTimer=null;
+function setAdminStatus(st){
+  const b=document.getElementById('adminStatus');
+  b.textContent = st==='実施中' ? 'ゲーム実施中' : 'ゲーム'+st;
+  b.className = 'badge' + (st==='実施中' ? '' : ' off');
+}
+function openAdmin(){
+  document.getElementById('adminEvent').textContent = CONFIG.eventName;
+  showScreen('screen-admin');
+  refreshAdmin();
+  clearInterval(adminTimer);
+  adminTimer=setInterval(()=>{
+    if(document.getElementById('screen-admin').classList.contains('active')) refreshAdmin(true);
+  },30000);
+}
+async function refreshAdmin(silent){
+  const msg=document.getElementById('adminMsg');
+  if(!API_URL){ msg.style.color='var(--red)'; msg.textContent='API_URLが未設定です。'; return; }
+  if(!silent){ msg.style.color='var(--ink-soft)'; msg.textContent='更新中…'; }
+  try{
+    const r=await fetch(API_URL+'?action=stats&pass='+encodeURIComponent(adminPass));
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'不明なエラー');
+    document.getElementById('stTeams').textContent=j.teams;
+    document.getElementById('stActive').textContent=j.active;
+    document.getElementById('stFinished').textContent=j.finished;
+    document.getElementById('stQr').textContent=j.qr;
+    document.getElementById('stCorrect').textContent=j.correct;
+    setAdminStatus(j.status);
+    msg.style.color='var(--ink-soft)';
+    const d=new Date();
+    msg.textContent='最終更新 '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+  }catch(e){
+    msg.style.color='var(--red)';
+    msg.textContent='取得できませんでした: '+(e.message||e);
+  }
+}
+async function adminCmd(cmd){
+  const label = cmd==='start' ? 'ゲームを開始' : 'ゲームを終了';
+  if(!confirm(label+'します。よろしいですか?')) return;
+  const msg=document.getElementById('adminMsg');
+  msg.style.color='var(--ink-soft)'; msg.textContent='送信中…';
+  try{
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({type:'admin',cmd:cmd,pass:adminPass})});
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'不明なエラー');
+    setAdminStatus(j.status);
+    CONFIG.gameStatus=j.status;
+    await refreshAdmin();
+  }catch(e){
+    msg.style.color='var(--red)';
+    msg.textContent='操作できませんでした: '+(e.message||e);
+  }
+}
+
 function applyConfig(){
   document.title = CONFIG.eventName;
   document.getElementById('brandName').textContent = CONFIG.eventName;
@@ -924,10 +1019,15 @@ async function loadRemoteConfig(){
     note.textContent='※スプレッドシートの設定を読み込めなかったため、内蔵の設定で動作します。原因: '+why;
   }
   applyConfig();
-  btn.disabled=false;
+  btn.disabled = !gameIsOpen();
+  if(!gameIsOpen()){
+    btn.textContent='ゲームは現在実施されていません';
+    note.textContent='ゲーム状態: '+CONFIG.gameStatus+'(管理者がゲームを開始するまでお待ちください)';
+  }
 }
 document.getElementById('verLine').textContent += ' / 接続先: ' + (API_URL ? '…'+API_URL.slice(-14) : '未設定');
 loadRemoteConfig();
+if(new URLSearchParams(location.search).has('admin')) openAdmin();
 </script>
 </body>
 </html>
