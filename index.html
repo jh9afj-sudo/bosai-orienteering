@@ -813,7 +813,7 @@ function finishEvent(completed){
 
 /* ============ STORAGE (Google Apps Script + スプレッドシート) ============ */
 // ★ここに Apps Script の「ウェブアプリURL」(…/exec)を貼り付けます。空欄ならランキング機能は無効になります。
-const API_URL = "https://script.google.com/macros/s/AKfycbx46-IWP4A9Ru-QHYaPWLlJ30zOilsyaWuUmjENemR26sD_cIoq4qgMv_VQz0YJGJSD/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbx46-IWP4A9Ru-QHYaPWLlJ30zOilsyaWuUmjENemR26sD_cIoq4qgMv_VQz0YJGJSD/exec?action=config";
 
 async function postJSON(obj){
   if(!API_URL) return false;
@@ -917,12 +917,16 @@ async function loadRemoteConfig(){
   btn.disabled=true; btn.textContent='設定を読み込み中...';
   try{
     const r = await fetch(API_URL+'?action=config');
-    const j = await r.json();
-    if(!j.ok || !j.points || !j.points.length || !j.quiz) throw new Error(j.error||'invalid');
+    const text = await r.text();
+    let j;
+    try{ j = JSON.parse(text); }
+    catch(pe){ throw new Error('応答がJSONではありません(アクセス権の設定が「全員」でない、またはURLが誤っている可能性)'); }
+    if(!j.ok) throw new Error('スクリプトのエラー: '+(j.error||'不明'));
+    if(!j.points || !j.quiz) throw new Error('古いスクリプトのままです(Code.gsを貼り直し、「新バージョン」で再デプロイしてください)');
     CONFIG=j.config; POINTS=j.points; QUIZ=j.quiz;
   }catch(e){
     console.error('config load failed',e);
-    note.textContent='※スプレッドシートの設定を読み込めなかったため、内蔵の設定で動作します。';
+    note.textContent='※スプレッドシートの設定を読み込めなかったため、内蔵の設定で動作します。原因: '+(e.message||e);
   }
   applyConfig();
   btn.disabled=false;
