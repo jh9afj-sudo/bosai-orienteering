@@ -289,7 +289,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
-        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-11</div>
+        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-12</div>
         <a onclick="rankingReturn='start'; showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
         &nbsp;|&nbsp;
         <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
@@ -1025,7 +1025,7 @@ function openMap(){
   if(!window.L){ document.getElementById('mapMsg').textContent='地図ライブラリを読み込めませんでした。通信状況を確認してください。'; return; }
   if(!leafMap){
     leafMap=L.map('mapBox',{zoomControl:true}).setView([36.0863,136.4288],15);
-    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18, attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'}).addTo(leafMap);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',{maxZoom:18, attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>(全国最新写真)'}).addTo(leafMap);
     mapLayer=L.layerGroup().addTo(leafMap);
   }
   setTimeout(()=>leafMap.invalidateSize(),50);
