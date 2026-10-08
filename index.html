@@ -200,6 +200,15 @@ table.rank tr.me{background:rgba(217,97,43,0.12);}
 .gamestate .badge{font-family:'JetBrains Mono',monospace; font-size:13px; padding:5px 12px; border-radius:20px; border:1.5px solid var(--green); color:var(--green); background:rgba(75,122,82,0.12);}
 .gamestate .badge.off{border-color:var(--red); color:var(--red); background:rgba(178,58,46,0.1);}
 .btn.danger{background:var(--red); color:#fff; box-shadow:0 3px 0 rgba(0,0,0,0.25);}
+.tablewrap{overflow-x:auto; margin:6px 0 4px;}
+table.qs{width:100%; border-collapse:collapse; font-size:12px; min-width:340px;}
+table.qs th{text-align:center; font-size:10.5px; color:var(--ink-soft); border-bottom:2px solid var(--ink); padding:6px 4px; white-space:nowrap;}
+table.qs td{text-align:center; padding:7px 4px; border-bottom:1px solid var(--paper-line); white-space:nowrap;}
+table.qs td.l, table.qs th.l{text-align:left;}
+table.qs td.num{font-family:'JetBrains Mono',monospace; font-weight:700;}
+.ok{color:var(--green); font-weight:700;} .ng{color:var(--red); font-weight:700;} .na{color:var(--ink-soft); opacity:.6;}
+.admin-h{font-family:'Zen Kaku Gothic New',sans-serif; font-size:15px; font-weight:900; margin:22px 0 2px;}
+.admin-sub{font-size:11px; color:var(--ink-soft); margin:0 0 4px; line-height:1.6;}
 footer.stafflink{ text-align:center; padding:6px 0 26px;}
 footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underline; cursor:pointer;}
 
@@ -273,7 +282,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <button class="btn primary" id="startBtn" onclick="startEvent()">スタート</button>
 
       <footer class="stafflink no-print">
-        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-7</div>
+        <div id="verLine" style="font-size:10px; color:var(--ink-soft); margin-bottom:6px;">ver 2026.10.08-8</div>
         <a onclick="rankingReturn='start'; showScreen('screen-ranking'); loadRanking();">ランキングを見る</a>
         &nbsp;|&nbsp;
         <a onclick="showScreen('screen-staff')">スタッフ用: QRコード印刷</a>
@@ -383,10 +392,20 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
         <div class="stat wide"><div class="lbl">参加チーム</div><div class="num" id="stTeams">0</div></div>
         <div class="stat"><div class="lbl">参加中</div><div class="num" id="stActive">0</div></div>
         <div class="stat"><div class="lbl">完走</div><div class="num" id="stFinished">0</div></div>
+        <div class="stat"><div class="lbl">GPSクリア</div><div class="num" id="stGps">0</div></div>
         <div class="stat"><div class="lbl">QRクリア</div><div class="num" id="stQr">0</div></div>
         <div class="stat"><div class="lbl">クイズ正解</div><div class="num" id="stCorrect">0</div></div>
       </div>
       <div id="adminMsg" style="font-size:12.5px; color:var(--ink-soft); text-align:center; min-height:18px;"></div>
+
+      <div class="admin-h">問題別の集計</div>
+      <p class="admin-sub">点数は、その問題で得た点(正解=配点、不正解=0点)。同じ参加者の回答は最新の1件だけを数えます。</p>
+      <div class="tablewrap" id="qStats"><p class="admin-sub">読み込み中…</p></div>
+
+      <div class="admin-h">参加者ごとの成績</div>
+      <p class="admin-sub">得点の高い順(同点は所要時間の短い順)。○=正解 ×=不正解 −=未回答。</p>
+      <div class="tablewrap" id="pStats"><p class="admin-sub">読み込み中…</p></div>
+
       <div class="field"><label>管理パスコード(設定されている場合のみ)</label><input id="adminPassInput" type="password" placeholder="パスコード" oninput="adminPass=this.value"></div>
       <button class="btn primary" onclick="adminCmd('start')">ゲーム開始</button>
       <button class="btn danger" onclick="adminCmd('end')">ゲーム終了</button>
@@ -958,9 +977,12 @@ async function refreshAdmin(silent){
     document.getElementById('stTeams').textContent=j.teams;
     document.getElementById('stActive').textContent=j.active;
     document.getElementById('stFinished').textContent=j.finished;
+    document.getElementById('stGps').textContent=j.gps;
     document.getElementById('stQr').textContent=j.qr;
     document.getElementById('stCorrect').textContent=j.correct;
     setAdminStatus(j.status);
+    renderQuestionStats(j.questions||[]);
+    renderParticipantStats(j.participants||[], j.questions||[]);
     msg.style.color='var(--ink-soft)';
     const d=new Date();
     msg.textContent='最終更新 '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
@@ -968,6 +990,32 @@ async function refreshAdmin(silent){
     msg.style.color='var(--red)';
     msg.textContent='取得できませんでした: '+(e.message||e);
   }
+}
+function fmtNum(v){ return (v===null||v===undefined) ? '−' : String(v); }
+function renderQuestionStats(qs){
+  const el=document.getElementById('qStats');
+  if(!qs.length){ el.innerHTML='<p class="admin-sub">データがありません。</p>'; return; }
+  let h='<table class="qs"><tr><th class="l">問題(地点)</th><th>配点</th><th>回答者数</th><th>平均点</th><th>最高点</th><th>最低点</th><th>正解数</th></tr>';
+  qs.forEach(q=>{
+    h+='<tr><td class="l">'+escapeHtml(q.id)+' '+escapeHtml(q.name)+'</td><td class="num">'+q.points+'</td><td class="num">'+q.respondents+'</td><td class="num">'+fmtNum(q.avg)+'</td><td class="num">'+fmtNum(q.max)+'</td><td class="num">'+fmtNum(q.min)+'</td><td class="num">'+q.correct+'</td></tr>';
+  });
+  el.innerHTML=h+'</table>';
+}
+function renderParticipantStats(ps, qs){
+  const el=document.getElementById('pStats');
+  if(!ps.length){ el.innerHTML='<p class="admin-sub">参加者がいません。</p>'; return; }
+  let h='<table class="qs"><tr><th>No.</th><th class="l">氏名(チーム)</th><th>得点</th><th>状況</th><th>時間</th>';
+  qs.forEach(q=>{ h+='<th>'+escapeHtml(q.id)+'</th>'; });
+  h+='</tr>';
+  ps.forEach(p=>{
+    h+='<tr><td class="num">'+escapeHtml(p.id)+'</td><td class="l">'+escapeHtml(p.name)+(p.team?'('+escapeHtml(p.team)+')':'')+'</td><td class="num">'+p.score+'</td><td>'+escapeHtml(p.status)+'</td><td class="num">'+(p.elapsedSec==null?'−':fmtTime(p.elapsedSec))+'</td>';
+    qs.forEach(q=>{
+      const r=p.results[q.id];
+      h+='<td>'+(r ? (r.c ? '<span class="ok">○'+r.s+'</span>' : '<span class="ng">×</span>') : '<span class="na">−</span>')+'</td>';
+    });
+    h+='</tr>';
+  });
+  el.innerHTML=h+'</table>';
 }
 async function adminCmd(cmd){
   const label = cmd==='start' ? 'ゲームを開始' : 'ゲームを終了';
