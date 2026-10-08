@@ -352,7 +352,7 @@ footer.stafflink a{font-size:11px; color:var(--ink-soft); text-decoration:underl
       <div class="hero" style="padding-top:6px;">
         <div class="eyebrow">RANKING</div>
         <h1 style="font-size:22px;">ランキング</h1>
-        <p class="lead" style="font-size:12.5px;">このランキングは参加者全員に共有されます。</p>
+        <p class="lead" style="font-size:12.5px;">ランキングは参加者全員に公開されます。</p>
       </div>
       <div id="rankingBody"><p style="text-align:center; color:var(--ink-soft); font-size:13px;">読み込み中...</p></div>
       <button class="btn ghost no-print" onclick="loadRanking();">再読み込み</button>
@@ -719,55 +719,39 @@ function finishEvent(completed){
   showScreen('screen-result');
 }
 
-/* ============ STORAGE (published page: db capability, design for absence) ============ */
-let DB=null;
-try{
-  if(window.claude && window.claude.use){
-    window.claude.use('db').then(d=>{ DB=d; }).catch(()=>{});
-  }
-}catch(e){}
-function safeKey(s){ return 'p_'+String(s).replace(/[^A-Za-z0-9_\-~:@+]/g,'_').slice(0,100); }
+/* ============ STORAGE (Google Apps Script + スプレッドシート) ============ */
+// ★ここに Apps Script の「ウェブアプリURL」(…/exec)を貼り付けます。空欄ならランキング機能は無効になります。
+const API_URL = "https://script.google.com/macros/s/AKfycbxWeYNxvXDFR-8arZvcsFW8F_gXig1n6RZITfqtIN97KXRg4PbInJgiXj0rOOsD_FGWbw/exec";
 
-async function saveParticipantRecord(isFinal, completed, elapsedSec){
-  if(!state.participant || !DB) return false;
-  const key=safeKey(state.participant.id);
-  const rec={
-    id:state.participant.id, name:state.participant.name, team:state.participant.team||'',
-    startedAt:state.startedAt,
-    score:state.score,
-    lastPoint:currentPoint().id,
-    completed: isFinal ? !!completed : false,
-    elapsedSec: isFinal ? elapsedSec : null,
-    updatedAt:Date.now()
-  };
+async function postJSON(obj){
+  if(!API_URL) return false;
   try{
-    await DB.doc('participants/'+key).set(rec);
-    if(isFinal){
-      await DB.doc('ranking/'+key).set({
-        id:rec.id, name:rec.name, team:rec.team, score:rec.score, elapsedSec:rec.elapsedSec, completed:rec.completed
-      });
-    }
-    return true;
-  }catch(e){ console.error('save failed',e); return false; }
+    const r = await fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(obj)});
+    const j = await r.json();
+    return !!j.ok;
+  }catch(e){ console.error('post failed',e); return false; }
+}
+async function saveParticipantRecord(isFinal, completed, elapsedSec){
+  if(!state.participant || !isFinal) return false;
+  return postJSON({type:'result', id:state.participant.id, name:state.participant.name, team:state.participant.team||'',
+    score:state.score, elapsedSec:elapsedSec, completed:!!completed, lastPoint:currentPoint().id});
 }
 async function logAnswer(pointId, choice, correct, earned){
-  if(!state.participant || !DB) return;
-  try{
-    await DB.doc('logs/'+safeKey(state.participant.id)+'_'+pointId).set({
-      participant:state.participant.id, pointId, choice, correct, earned, gpsDist:state.gpsDist, at:Date.now()
-    });
-  }catch(e){ console.error('log failed',e); }
+  if(!state.participant) return;
+  postJSON({type:'log', id:state.participant.id, name:state.participant.name, pointId:pointId, choice:choice, correct:correct, earned:earned,
+    gpsDist: state.gpsDist==null ? '' : Math.round(state.gpsDist)});
 }
 async function loadRanking(){
   const body=document.getElementById('rankingBody');
   body.innerHTML='<p style="text-align:center; color:var(--ink-soft); font-size:13px;">読み込み中...</p>';
-  if(!DB){
-    body.innerHTML='<p style="text-align:center; color:var(--ink-soft); font-size:13px; line-height:1.7;">この環境ではランキングを表示できません。<br>得点はご自身の結果画面でご確認ください。</p>';
+  if(!API_URL){
+    body.innerHTML='<p style="text-align:center; color:var(--ink-soft); font-size:13px; line-height:1.7;">ランキングは設定されていません。<br>得点は結果画面でご確認ください。</p>';
     return;
   }
   try{
-    const snap = await DB.collection('ranking').get();
-    const items = snap.docs.map(d=>d.data()).filter(Boolean);
+    const r = await fetch(API_URL);
+    const j = await r.json();
+    const items = j.items || [];
     if(items.length===0){
       body.innerHTML='<p style="text-align:center; color:var(--ink-soft); font-size:13px;">まだ記録がありません。</p>';
       return;
@@ -776,7 +760,7 @@ async function loadRanking(){
     let html='<table class="rank"><tr><th>順位</th><th>氏名</th><th>チーム</th><th>得点</th><th>時間</th></tr>';
     items.forEach((it,i)=>{
       const isMe = state.participant && String(it.id)===String(state.participant.id);
-      html+='<tr class="'+(isMe?'me':'')+'"><td class="rankno">'+(i+1)+'</td><td>'+escapeHtml(it.name)+(it.completed?'':' <small style="color:var(--gold)">(未完走)</small>')+'</td><td>'+escapeHtml(it.team||'-')+'</td><td class="rankno">'+it.score+'</td><td class="rankno">'+(it.elapsedSec!=null?fmtTime(it.elapsedSec):'-')+'</td></tr>';
+      html+='<tr class="'+(isMe?'me':'')+'"><td class="rankno">'+(i+1)+'</td><td>'+escapeHtml(it.name)+(it.completed?'':' <small style="color:var(--gold)">(未完走)</small>')+'</td><td>'+escapeHtml(it.team||'-')+'</td><td class="rankno">'+it.score+'</td><td class="rankno">'+(it.elapsedSec!=null&&it.elapsedSec!==''?fmtTime(it.elapsedSec):'-')+'</td></tr>';
     });
     html+='</table>';
     body.innerHTML=html;
